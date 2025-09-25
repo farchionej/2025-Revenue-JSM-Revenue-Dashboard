@@ -883,7 +883,6 @@
                                         <th class="sortable" onclick="Dashboard.sortPayments('status')">Payment Status</th>
                                         <th class="sortable" onclick="Dashboard.sortPayments('date')">Payment Date</th>
                                         <th>Notes</th>
-                                        <th>Quick Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="paymentsTableBody">
@@ -991,12 +990,12 @@
                                 ` : `
                                     <div class="status-toggle">
                                         <button class="status-toggle-btn ${status === 'unpaid' ? 'active' : ''}"
-                                                onclick="Dashboard.actions.togglePaymentStatus(${payment.id}, 'unpaid')"
+                                                onclick="Dashboard.actions.togglePaymentStatus(${payment.id}, '${status}')"
                                                 title="Mark as unpaid">
                                             Unpaid
                                         </button>
                                         <button class="status-toggle-btn ${status === 'paid' ? 'active' : ''}"
-                                                onclick="Dashboard.actions.togglePaymentStatus(${payment.id}, 'paid')"
+                                                onclick="Dashboard.actions.togglePaymentStatus(${payment.id}, '${status}')"
                                                 title="Mark as paid">
                                             Paid
                                         </button>
@@ -1033,22 +1032,6 @@
                                         </div>
                                     `}
                                     <div class="edit-indicator">Edit</div>
-                                </div>
-                            </td>
-                            <td>
-                                <div style="display: flex; gap: 6px; align-items: center;">
-                                    ${!isPaused && status === 'unpaid' ? `
-                                        <button class="table-action-btn primary"
-                                                onclick="Dashboard.actions.quickMarkPaid(${payment.id})"
-                                                title="Quick mark as paid">
-                                            Pay
-                                        </button>
-                                    ` : ''}
-                                    <button class="table-action-btn"
-                                            onclick="Dashboard.actions.viewClientDetails(${client.id})"
-                                            title="View client details">
-                                        Client
-                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -1113,16 +1096,20 @@
                     return `
                         <tr>
                             <td><strong>${client.name}</strong></td>
-                            <td>$${parseFloat(client.amount).toLocaleString()}</td>
+                            <td>
+                                <div class="editable-amount"
+                                     data-client-id="${client.id}"
+                                     data-current-amount="${client.amount}"
+                                     onclick="Dashboard.actions.startInlineAmountEdit(this)">
+                                    $${parseFloat(client.amount).toLocaleString()}
+                                </div>
+                            </td>
                             <td><span class="status ${client.status}">${client.status}</span></td>
                             <td>${client.start_date}</td>
                             <td class="lifetime-value-${client.id}">Loading...</td>
                             <td>
                                 <button class="btn small secondary" onclick="Dashboard.actions.toggleClientStatus(${client.id}, '${client.status}')">
                                     Change Status
-                                </button>
-                                <button class="btn small secondary" onclick="Dashboard.actions.editClient(${client.id})">
-                                    Edit
                                 </button>
                             </td>
                         </tr>
@@ -2518,6 +2505,8 @@
                 return {
                     addClient: () => this.showAddClientModal(),
                     editClient: (id) => this.toast('Edit client functionality coming soon', 'info'),
+                    editClientAmount: (clientId, currentAmount) => this.editClientAmount(clientId, currentAmount),
+                    startInlineAmountEdit: (element) => this.startInlineAmountEdit(element),
                     toggleClientStatus: (id, currentStatus) => this.toggleClientStatus(id, currentStatus),
                     togglePaymentStatus: (paymentId, currentStatus) => this.togglePaymentStatus(paymentId, currentStatus),
                     editNotes: (paymentId) => this.editPaymentNotes(paymentId),
@@ -2531,11 +2520,14 @@
                     exportAnalytics: () => this.exportAnalytics(),
                     syncDatabase: () => this.syncDatabase(),
                     syncMasterInvoiceLog: () => this.syncMasterInvoiceLog(),
-                    refreshAll: () => this.refreshData()
+                    refreshAll: () => this.refreshData(),
+                    cleanupDuplicateClients: () => this.cleanupDuplicateClients()
                 };
             }
 
             async togglePaymentStatus(paymentId, currentStatus) {
+                console.log('🔍 togglePaymentStatus called with:', { paymentId, currentStatus });
+
                 if (currentStatus === 'paused') {
                     this.toast('Cannot change status of paused clients', 'warning');
                     return;
@@ -2544,15 +2536,22 @@
                 const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
                 const paymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
 
+                console.log('🔄 Toggling status:', { currentStatus, newStatus, paymentDate });
+
                 this.showLoading();
                 try {
+                    console.log('📡 Updating Supabase with:', { status: newStatus, payment_date: paymentDate });
                     const { error } = await this.supabase
                         .from('monthly_payments')
                         .update({ status: newStatus, payment_date: paymentDate })
                         .eq('id', paymentId);
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('❌ Supabase error:', error);
+                        throw error;
+                    }
 
+                    console.log('✅ Supabase update successful');
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
@@ -2875,7 +2874,159 @@
                 }
             }
 
+            startInlineAmountEdit(element) {
+                console.log('💰 Starting inline amount edit');
+
+                const clientId = element.dataset.clientId;
+                const currentAmount = parseFloat(element.dataset.currentAmount);
+
+                // Create clean input field
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = '0.01';
+                input.value = currentAmount;
+                input.className = 'amount-editing-input';
+
+                // Create actions container
+                const actionsContainer = document.createElement('div');
+                actionsContainer.className = 'amount-edit-actions';
+
+                // Create save button
+                const saveBtn = document.createElement('button');
+                saveBtn.textContent = 'Save';
+                saveBtn.className = 'amount-action-btn save';
+                saveBtn.title = 'Save changes (applies to current month forward)';
+
+                // Create cancel button
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.className = 'amount-action-btn cancel';
+
+                actionsContainer.appendChild(saveBtn);
+                actionsContainer.appendChild(cancelBtn);
+
+                // Store original content
+                const originalContent = element.innerHTML;
+
+                // Replace content with input and actions
+                element.innerHTML = '';
+                element.appendChild(input);
+                element.appendChild(actionsContainer);
+
+                // Focus input and select text
+                input.focus();
+                input.select();
+
+                // Save handler
+                const saveAmount = async () => {
+                    const newAmount = parseFloat(input.value);
+                    if (isNaN(newAmount) || newAmount < 0) {
+                        this.toast('Please enter a valid amount', 'error');
+                        return;
+                    }
+
+                    if (newAmount === currentAmount) {
+                        element.innerHTML = originalContent;
+                        return;
+                    }
+
+                    await this.updateClientAmount(clientId, newAmount, element, originalContent);
+                };
+
+                // Cancel handler
+                const cancelEdit = () => {
+                    element.innerHTML = originalContent;
+                };
+
+                // Event listeners with proper event handling
+                saveBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    saveAmount();
+                });
+
+                cancelBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cancelEdit();
+                });
+
+                // Keyboard shortcuts
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveAmount();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelEdit();
+                    }
+                });
+
+                // Auto-cancel on blur with proper button handling
+                input.addEventListener('blur', (e) => {
+                    // Give time for button clicks to register
+                    setTimeout(() => {
+                        // Check if we're still in editing mode (element might have been updated)
+                        if (element.querySelector('.amount-editing-input')) {
+                            cancelEdit();
+                        }
+                    }, 200);
+                });
+            }
+
+            async updateClientAmount(clientId, newAmount, element, originalContent) {
+                console.log('💰 Updating client amount:', { clientId, newAmount });
+
+                this.showLoading();
+                try {
+                    const currentDate = new Date().toISOString().split('T')[0];
+                    const effectiveDate = `${this.currentMonth}-01`;
+
+                    // Step 1: Create amount history record (if table exists)
+                    try {
+                        await this.supabase
+                            .from('client_amount_history')
+                            .insert({
+                                client_id: clientId,
+                                amount: newAmount,
+                                effective_date: effectiveDate,
+                                created_at: currentDate
+                            });
+                    } catch (historyError) {
+                        console.warn('Amount history table not found, skipping history record');
+                    }
+
+                    // Step 2: Update client's current amount
+                    const { error: clientError } = await this.supabase
+                        .from('clients')
+                        .update({ amount: newAmount })
+                        .eq('id', clientId);
+
+                    if (clientError) throw clientError;
+
+                    console.log('✅ Client amount updated successfully');
+
+                    // Update the display with clean design
+                    element.innerHTML = `$${newAmount.toLocaleString()}`;
+                    element.dataset.currentAmount = newAmount;
+
+                    // Refresh other data
+                    this.clearCache();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+
+                    this.toast(`Amount updated to $${newAmount.toLocaleString()} (effective ${this.currentMonth})`, 'success');
+                } catch (error) {
+                    this.toast('Failed to update amount', 'error');
+                    console.error('Error updating client amount:', error);
+                    element.innerHTML = originalContent; // Restore original on error
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
             async quickMarkPaid(paymentId) {
+                console.log('⚡ quickMarkPaid called with paymentId:', paymentId);
                 const today = new Date().toISOString().split('T')[0];
 
                 this.showLoading();
@@ -4288,6 +4439,81 @@
                 });
             }
 
+            async cleanupDuplicateClients() {
+                console.log('🧹 Starting client cleanup...');
+
+                if (!confirm('This will remove the following clients:\n\n- dine credit\n- Johnnie\'s Grill dine credit\n- Californios (keeping Californios dine credit)\n- Nisei (keeping Nisei dine credit)\n\nThis action cannot be undone. Continue?')) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    const clientsToRemove = [
+                        'dine credit',
+                        'Johnnie\'s Grill dine credit',
+                        'Californios',
+                        'Nisei'
+                    ];
+
+                    for (const clientName of clientsToRemove) {
+                        console.log(`🗑️ Removing client: ${clientName}`);
+
+                        // Get client ID first
+                        const { data: client, error: findError } = await this.supabase
+                            .from('clients')
+                            .select('id')
+                            .ilike('name', clientName)
+                            .single();
+
+                        if (findError) {
+                            console.warn(`Client "${clientName}" not found:`, findError);
+                            continue;
+                        }
+
+                        if (client) {
+                            // Delete related payment records first
+                            const { error: paymentsError } = await this.supabase
+                                .from('monthly_payments')
+                                .delete()
+                                .eq('client_id', client.id);
+
+                            if (paymentsError) {
+                                console.error(`Error deleting payments for ${clientName}:`, paymentsError);
+                            } else {
+                                console.log(`✅ Deleted payments for ${clientName}`);
+                            }
+
+                            // Delete the client
+                            const { error: clientError } = await this.supabase
+                                .from('clients')
+                                .delete()
+                                .eq('id', client.id);
+
+                            if (clientError) {
+                                console.error(`Error deleting client ${clientName}:`, clientError);
+                            } else {
+                                console.log(`✅ Deleted client ${clientName}`);
+                            }
+                        }
+                    }
+
+                    // Refresh all data
+                    this.clearCache();
+                    await this.loadClients();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast('Client cleanup completed successfully!', 'success');
+                    console.log('✅ Client cleanup completed');
+                } catch (error) {
+                    console.error('❌ Error during client cleanup:', error);
+                    this.toast('Error during client cleanup', 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
 
         }
 
@@ -4300,11 +4526,18 @@
 
         // Initialize when page loads and Chart.js is available
         window.addEventListener('load', () => {
+            console.log('🚀 Window loaded, starting Dashboard initialization...');
             // Check if Chart.js is loaded
             const initDashboard = () => {
+                console.log('📊 Checking for Chart.js...', typeof Chart !== 'undefined' ? 'FOUND' : 'NOT FOUND');
                 if (typeof Chart !== 'undefined') {
                     console.log('Chart.js loaded, initializing dashboard...');
-                    Dashboard = new DashboardCore();
+                    try {
+                        Dashboard = new DashboardCore();
+                        console.log('✅ Dashboard created successfully:', Dashboard);
+                    } catch (error) {
+                        console.error('❌ Error creating Dashboard:', error);
+                    }
                 } else {
                     console.log('Waiting for Chart.js to load...');
                     setTimeout(initDashboard, 100);
