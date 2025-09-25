@@ -1424,7 +1424,22 @@
             }
 
             async processMonthlyPerformance(metrics, clients, monthlyData) {
-                for (const monthRecord of monthlyData.slice(0, 12)) { // Last 12 months
+                // Since monthlyData is ordered descending, reverse to get chronological order for charts
+                const chronologicalData = monthlyData.slice().reverse();
+
+                // Include current month if not in monthlyData
+                const currentMonth = new Date().toISOString().slice(0, 7);
+                const hasCurrentMonth = chronologicalData.some(record => record.month === currentMonth);
+
+                if (!hasCurrentMonth && chronologicalData.length > 0) {
+                    // Add current month with basic structure
+                    chronologicalData.push({
+                        month: currentMonth,
+                        costs: 0
+                    });
+                }
+
+                for (const monthRecord of chronologicalData.slice(-24)) { // Last 24 months for better trend analysis
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
@@ -1867,8 +1882,13 @@
                 const flow = this.analyticsData.cashFlow;
                 const monthlyPerformance = this.analyticsData.monthlyPerformance || [];
 
-                // Get last 6 months of cash flow data for trend analysis
-                const last6Months = monthlyPerformance.slice(-6);
+                // Get last 12 months of cash flow data for better trend analysis
+                const last12Months = monthlyPerformance.slice(-12);
+
+                // Validate that we have meaningful data
+                if (last12Months.length === 0) {
+                    throw new Error('No monthly performance data available for cash flow analysis');
+                }
 
                 if (this.charts.cashFlow) {
                     try {
@@ -1883,7 +1903,7 @@
                 }
 
                 // Create waterfall-style cash flow visualization
-                const labels = last6Months.map(d => {
+                const labels = last12Months.map(d => {
                     if (!d.month) return 'Unknown';
                     const [year, month] = d.month.split('-');
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1896,7 +1916,7 @@
                         labels: labels,
                         datasets: [{
                             label: 'Expected Revenue',
-                            data: last6Months.map(d => d.expected),
+                            data: last12Months.map(d => d.expected),
                             borderColor: 'rgba(139, 92, 246, 1)',
                             backgroundColor: 'rgba(139, 92, 246, 0.1)',
                             borderDash: [5, 5],
@@ -1904,14 +1924,14 @@
                             fill: false
                         }, {
                             label: 'Collected Revenue',
-                            data: last6Months.map(d => d.actual),
+                            data: last12Months.map(d => d.actual),
                             borderColor: 'rgba(91, 33, 182, 1)',
                             backgroundColor: 'rgba(91, 33, 182, 0.1)',
                             tension: 0.4,
                             fill: '+1'
                         }, {
                             label: 'Operating Income',
-                            data: last6Months.map(d => d.opIncome),
+                            data: last12Months.map(d => d.opIncome),
                             borderColor: 'rgba(76, 29, 149, 1)',
                             backgroundColor: 'rgba(76, 29, 149, 0.1)',
                             tension: 0.4,
@@ -2217,9 +2237,9 @@
                     allMonths.add(currentMonth);
                 }
 
-                // Convert to sorted array and limit to reasonable time range (last 24 months max)
+                // Convert to sorted array and limit to reasonable time range (last 18 months max)
                 const sortedMonths = Array.from(allMonths).sort();
-                const recentMonths = sortedMonths.slice(-24); // Show max 24 months for better readability
+                const recentMonths = sortedMonths.slice(-18); // Show max 18 months for better readability and performance
 
                 console.log(`Displaying ${recentMonths.length} months of data (from ${sortedMonths.length} total months)`);
                 console.log('Month range:', recentMonths[0], 'to', recentMonths[recentMonths.length - 1]);
