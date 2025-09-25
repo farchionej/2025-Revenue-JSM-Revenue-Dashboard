@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jay Street Media Revenue Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Keyboard Help -->
+    <div id="keyboardHelp" class="keyboard-help">
+        Press ? for keyboard shortcuts
+    </div>
+
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <div class="sync-status" id="syncStatus">
+                <span>●</span>
+                <span>Connecting...</span>
+            </div>
+            <h1>Jay Street Media</h1>
+            <div class="subtitle">Revenue Dashboard & Client Management</div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="quick-stats" id="quickStats">
+            <!-- Stats will be populated by JavaScript -->
+        </div>
+
+        <!-- Enhanced Main Navigation -->
+        <div class="main-nav">
+            <!-- Navigation Header with Month Selector -->
+            <div class="nav-header">
+                <div class="nav-title">
+                    Dashboard Control Center
+                </div>
+                <div class="month-selector-enhanced">
+                    <select id="monthSelector" onchange="Dashboard.setCurrentMonth(this.value)">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Enhanced Navigation Tabs -->
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="overview">
+                    <span>Overview</span>
+                </button>
+                <button class="nav-tab" data-tab="payments">
+                    <span>Payment Tracking</span>
+                </button>
+                <button class="nav-tab" data-tab="clients">
+                    <span>Client Management</span>
+                </button>
+                <button class="nav-tab" data-tab="analytics">
+                    <span>Analytics</span>
+                </button>
+            </div>
+
+            <!-- Enhanced Quick Actions -->
+            <div class="quick-actions">
+                <div class="action-group primary">
+                    <span class="action-group-label">Create</span>
+                    <button class="btn primary" onclick="Dashboard.actions.addClient()">
+                        + Add Client
+                    </button>
+                </div>
+
+                <div class="action-group">
+                    <span class="action-group-label">Export</span>
+                    <button class="btn secondary" onclick="Dashboard.actions.exportData()">
+                        Data
+                    </button>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="action-group purple">
+                    <span class="action-group-label">Sync</span>
+                    <button class="btn purple" onclick="Dashboard.actions.syncMasterInvoiceLog()">
+                        Master Invoice Log
+                    </button>
+                </div>
+
+                <div class="action-group">
+                    <span class="action-group-label">Refresh</span>
+                    <button class="btn secondary" onclick="Dashboard.actions.refreshAll()">
+                        All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tabContent">
+            <!-- Content will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
