@@ -913,6 +913,44 @@
                                 </div>
                             </div>
 
+                            <!-- Google vs Non-Google Income Section -->
+                            <div style="margin-bottom: 40px;">
+                                <div class="chart-container" style="background: var(--card-background); border-radius: var(--border-radius); padding: 24px; box-shadow: var(--shadow-soft); border: 1px solid var(--glass-border);">
+                                    <div class="chart-header">
+                                        <div class="chart-title">2025 Income Distribution</div>
+                                        <div class="chart-subtitle">Google vs Non-Google Revenue Sources</div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center;">
+                                        <div style="height: 300px; position: relative;">
+                                            <canvas id="googleVsNonGoogleChart"></canvas>
+                                        </div>
+                                        <div style="padding: 20px;">
+                                            <div style="margin-bottom: 24px;">
+                                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                                    <div style="width: 12px; height: 12px; background: #9CA3AF; border-radius: 2px;"></div>
+                                                    <span style="font-weight: 600; color: var(--primary-text);">Google Income</span>
+                                                </div>
+                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$215,000 total</div>
+                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">53.6% of total income</div>
+                                            </div>
+                                            <div style="margin-bottom: 24px;">
+                                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                                    <div style="width: 12px; height: 12px; background: #22C55E; border-radius: 2px;"></div>
+                                                    <span style="font-weight: 600; color: var(--primary-text);">Non-Google Income</span>
+                                                </div>
+                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$201,930 from diversified sources</div>
+                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">46.4% of total income</div>
+                                            </div>
+                                            <div style="padding: 16px; background: rgba(34, 197, 94, 0.1); border-radius: 8px; border: 1px solid rgba(34, 197, 94, 0.2);">
+                                                <div style="font-size: 0.9em; color: var(--secondary-text); margin-bottom: 4px;">Progress to Target</div>
+                                                <div style="font-weight: 600; color: #059669;">76.33% achieved</div>
+                                                <div style="font-size: 0.85em; color: var(--secondary-text); margin-top: 4px;">$9,375 needed to reach target</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
                                 <div>
                                     <h3 style="margin-bottom: 16px; font-size: 1.2em;">Quick Actions</h3>
@@ -4600,6 +4638,10 @@
 
                     // Render monthly expected revenue chart
                     this.renderOverviewMonthlyRevenueChart(clients);
+
+                    // Render Google vs Non-Google income chart
+                    this.renderGoogleVsNonGoogleChart();
+
                     // Force purple colors after chart rendering
                     setTimeout(() => this.forceChartColors(), 100);
 
@@ -4785,6 +4827,61 @@
                                     display: false
                                 }
                             }
+                        }
+                    }
+                });
+            }
+
+            renderGoogleVsNonGoogleChart() {
+                const ctx = document.getElementById('googleVsNonGoogleChart');
+                if (!ctx) return;
+
+                // Income data from the provided image
+                const googleIncome = 215000;
+                const nonGoogleIncome = 201930;
+                const totalIncome = googleIncome + nonGoogleIncome;
+
+                // Calculate percentages
+                const googlePercentage = ((googleIncome / totalIncome) * 100).toFixed(1);
+                const nonGooglePercentage = ((nonGoogleIncome / totalIncome) * 100).toFixed(1);
+
+                if (this.charts.googleVsNonGoogle) {
+                    this.charts.googleVsNonGoogle.destroy();
+                }
+
+                this.charts.googleVsNonGoogle = new Chart(ctx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Google Income', 'Non-Google Income'],
+                        datasets: [{
+                            data: [googleIncome, nonGoogleIncome],
+                            backgroundColor: ['#9CA3AF', '#22C55E'],
+                            borderColor: ['#6B7280', '#16A34A'],
+                            borderWidth: 2,
+                            hoverBorderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.parsed;
+                                        const percentage = ((value / totalIncome) * 100).toFixed(1);
+                                        return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        animation: {
+                            animateScale: true,
+                            animateRotate: true
                         }
                     }
                 });
