@@ -3043,10 +3043,23 @@
                 console.log('Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
                 console.log('Looking for client ID:', clientId);
 
-                const client = clients.find(c => c.id === clientId);
+                // Try different ID matching approaches
+                let client = clients.find(c => c.id === clientId);
 
                 if (!client) {
-                    console.error('Client not found. Available IDs:', clients.map(c => c.id));
+                    // Try string/number conversion
+                    client = clients.find(c => c.id == clientId); // loose equality
+                }
+
+                if (!client) {
+                    // Try other possible ID fields
+                    client = clients.find(c => c.client_id === clientId || c.client_id == clientId);
+                }
+
+                if (!client) {
+                    console.error('Client not found with any ID matching approach');
+                    console.error('Looking for ID:', clientId, 'Type:', typeof clientId);
+                    console.error('Available IDs:', clients.map(c => ({ id: c.id, type: typeof c.id, client_id: c.client_id })));
                     this.toast(`Client not found. ID: ${clientId}`, 'error');
                     return;
                 }
