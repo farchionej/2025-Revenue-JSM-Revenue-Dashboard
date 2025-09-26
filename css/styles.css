@@ -44,6 +44,34 @@
             color: var(--primary-text);
             line-height: 1.6;
             font-weight: 400;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Dark Mode Theme Override */
+        .dark-mode {
+            --primary-text: #f8fafc;
+            --secondary-text: #e2e8f0;
+            --tertiary-text: #cbd5e0;
+            --light-gray: #1f2937;
+            --border-gray: #374151;
+            --success-green: #10b981;
+            --error-red: #ef4444;
+            --warning-gray: #9ca3af;
+            --background: #0a0a0b;
+            --card-background: rgba(15, 15, 15, 0.95);
+            --glass-background: rgba(20, 20, 20, 0.8);
+            --glass-border: rgba(75, 85, 99, 0.3);
+
+            /* Dark mode shadows */
+            --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+            --shadow-medium: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+            --shadow-large: 0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.4);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.6), 0 3px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .dark-mode body,
+        .dark-mode {
+            background: linear-gradient(135deg, #0a0a0b 0%, #1a1a1b 100%);
         }
 
         /* Toast Notification System */
@@ -1365,6 +1393,490 @@
             box-shadow:
                 0 2px 8px rgba(107, 114, 128, 0.2),
                 0 1px 3px rgba(0, 0, 0, 0.16);
+        }
+
+        /* Dark Mode Component Overrides */
+        .dark-mode .loading-overlay {
+            background: rgba(10, 10, 11, 0.8);
+        }
+
+        .dark-mode .toast {
+            background: var(--card-background);
+            border-color: var(--border-gray);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .nav-tab {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .nav-tab.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--primary-text);
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .nav-tab:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .main-tabs {
+            background: var(--card-background);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .glass {
+            background: var(--glass-background);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .overview-card,
+        .dark-mode .analytics-card {
+            background: var(--card-background);
+            border-color: var(--glass-border);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .metric-box {
+            background: var(--glass-background);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .metric-value {
+            color: var(--primary-text);
+        }
+
+        .dark-mode .metric-label {
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .chart-container {
+            background: var(--card-background);
+        }
+
+        .dark-mode table {
+            background: var(--card-background);
+            color: var(--primary-text);
+        }
+
+        .dark-mode th,
+        .dark-mode td {
+            border-color: var(--border-gray);
+            color: var(--primary-text);
+        }
+
+        .dark-mode thead th {
+            background: rgba(30, 30, 30, 0.8);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .btn {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dark-mode .header {
+            background: var(--card-background);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .sync-status {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border: 1px solid var(--glass-border);
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
+
+        .dark-mode .sync-status span:first-child {
+            color: var(--success-green);
+        }
+
+        /* Header Layout */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            position: relative;
+        }
+
+        .header-left {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-center {
+            flex: 2;
+            text-align: center;
+        }
+
+        .header-center h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .header-center .subtitle {
+            margin: 0;
+            font-size: 0.875rem;
+            opacity: 0.7;
+        }
+
+        .header-right {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        /* Dark Mode Toggle Button - Low-key design next to sync status */
+        .dark-mode-toggle {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            width: 32px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--primary-text);
+            font-size: 0.75rem;
+            box-shadow: none;
+            margin-left: 12px;
+            opacity: 0.7;
+        }
+
+        .dark-mode-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+            opacity: 1;
+            transform: none;
+        }
+
+        .dark-mode-toggle:active {
+            transform: scale(0.95);
+            transition: transform 0.1s ease;
+        }
+
+        .toggle-icon {
+            transition: transform 0.3s ease;
+            font-size: 0.75rem;
+        }
+
+        /* Dark mode styles for toggle */
+        .dark-mode .dark-mode-toggle {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.08);
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .dark-mode-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Icon rotation animation */
+        .dark-mode .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        /* Navigation components */
+        .dark-mode .nav-header {
+            background: var(--card-background);
+            color: var(--primary-text);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .nav-title {
+            color: var(--primary-text);
+        }
+
+        .dark-mode .quick-actions {
+            background: var(--card-background);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .action-group {
+            background: var(--glass-background);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .action-group-label {
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .month-selector-enhanced select {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .month-selector-enhanced select:focus {
+            background: rgba(40, 40, 40, 0.9);
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .month-selector-enhanced {
+            background: var(--glass-background);
+            border: 1px solid var(--glass-border);
+        }
+
+        .dark-mode .month-selector-enhanced select option {
+            background: var(--card-background);
+            color: var(--primary-text);
+        }
+
+        /* Additional UI components */
+        .dark-mode .keyboard-help {
+            background: var(--card-background);
+            color: var(--secondary-text);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .spinner {
+            border-color: var(--border-gray);
+            border-top-color: var(--chart-purple-light);
+        }
+
+        /* Chart component styling */
+        .dark-mode .chart-title {
+            color: var(--primary-text);
+        }
+
+        .dark-mode .chart-subtitle {
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .chart-header {
+            color: var(--primary-text);
+        }
+
+        /* Analytics section styling */
+        .dark-mode .section-header {
+            background: var(--card-background);
+            color: var(--primary-text);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .section-title {
+            color: var(--primary-text);
+        }
+
+        .dark-mode .section-subtitle {
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .section-controls {
+            background: var(--glass-background);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .filter-btn {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .filter-btn.active {
+            background: var(--chart-purple-light);
+            color: #ffffff;
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .filter-btn:hover {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .btn.secondary {
+            background: var(--glass-background);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .btn.secondary:hover {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .btn.success {
+            background: var(--chart-purple-light);
+            color: #ffffff;
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .btn.success:hover {
+            background: rgba(139, 92, 246, 0.8);
+        }
+
+        /* Status Selector with Hover Effect */
+        .status-selector {
+            position: relative;
+            display: inline-block;
+        }
+
+        .current-status {
+            cursor: pointer;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .status-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--card-background);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            box-shadow: var(--shadow-medium);
+            padding: 4px;
+            gap: 4px;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.2s ease;
+            z-index: 10;
+            backdrop-filter: blur(20px);
+        }
+
+        .status-selector:hover .status-options {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .status-options .status-btn {
+            margin: 0;
+            min-width: 70px;
+            font-size: 0.75rem;
+            padding: 6px 12px;
+            white-space: nowrap;
+        }
+
+        .status-options .status-btn:hover {
+            transform: none;
+            opacity: 1;
+        }
+
+        /* Dark mode adjustments */
+        .dark-mode .status-options {
+            background: var(--card-background);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .form-input,
+        .dark-mode select,
+        .dark-mode input[type="text"],
+        .dark-mode input[type="email"],
+        .dark-mode input[type="date"],
+        .dark-mode textarea {
+            background: rgba(30, 30, 30, 0.8);
+            border-color: var(--border-gray);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .form-input:focus,
+        .dark-mode select:focus,
+        .dark-mode input:focus,
+        .dark-mode textarea:focus {
+            background: rgba(40, 40, 40, 0.9);
+            border-color: var(--chart-purple-light);
+        }
+
+        .dark-mode .modal-content {
+            background: var(--card-background);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .inline-edit-container {
+            background: rgba(30, 30, 30, 0.95);
+            border-color: var(--border-gray);
+        }
+
+        .dark-mode .status-btn {
+            background: rgba(20, 20, 20, 0.8);
+        }
+
+        /* Add smooth transitions to all interactive elements */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Status Button Styling */
+        .status-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-btn {
+            padding: 4px 8px;
+            font-size: 0.75em;
+            font-weight: 500;
+            border: 1px solid;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.7);
+            opacity: 0.6;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .status-btn:hover {
+            opacity: 0.8;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-btn.active {
+            opacity: 1;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-btn.green {
+            border-color: #10b981;
+            color: #065f46;
+        }
+
+        .status-btn.green.active {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-btn.yellow {
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .status-btn.yellow.active {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-btn.red {
+            border-color: #ef4444;
+            color: #dc2626;
+        }
+
+        .status-btn.red.active {
+            background: #ef4444;
+            color: white;
         }
 
         /* Utility Classes */

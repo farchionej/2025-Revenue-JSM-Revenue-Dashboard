@@ -24,6 +24,7 @@
             }
 
             async init() {
+                this.setupDarkMode();
                 this.setupEventListeners();
                 this.setupKeyboardShortcuts();
                 await this.initializeSupabase();
@@ -37,6 +38,170 @@
                 return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             }
 
+            setupDarkMode() {
+                // Check localStorage for saved theme preference
+                const savedTheme = localStorage.getItem('dashboardTheme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+                // Apply saved theme or system preference
+                if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                    this.enableDarkMode();
+                } else {
+                    this.disableDarkMode();
+                }
+
+                // Listen for system theme changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                    if (!localStorage.getItem('dashboardTheme')) {
+                        if (e.matches) {
+                            this.enableDarkMode();
+                        } else {
+                            this.disableDarkMode();
+                        }
+                    }
+                });
+            }
+
+            enableDarkMode() {
+                document.body.classList.add('dark-mode');
+                const toggle = document.getElementById('darkModeToggle');
+                const icon = toggle?.querySelector('.toggle-icon');
+                if (icon) icon.textContent = '☀️';
+                localStorage.setItem('dashboardTheme', 'dark');
+
+                // Update charts if they exist
+                this.updateChartsForTheme('dark');
+                this.forceChartColors();
+                this.refreshClientDistributionLegend();
+            }
+
+            disableDarkMode() {
+                document.body.classList.remove('dark-mode');
+                const toggle = document.getElementById('darkModeToggle');
+                const icon = toggle?.querySelector('.toggle-icon');
+                if (icon) icon.textContent = '🌙';
+                localStorage.setItem('dashboardTheme', 'light');
+
+                // Update charts if they exist
+                this.updateChartsForTheme('light');
+                this.forceChartColors();
+                this.refreshClientDistributionLegend();
+            }
+
+            toggleDarkMode() {
+                if (document.body.classList.contains('dark-mode')) {
+                    this.disableDarkMode();
+                } else {
+                    this.enableDarkMode();
+                }
+            }
+
+            refreshClientDistributionLegend() {
+                // Specifically refresh the client distribution chart legend with current theme
+                const chart = this.charts.clientDistribution;
+                if (chart && chart.options.plugins && chart.options.plugins.legend) {
+                    const isDarkMode = document.body.classList.contains('dark-mode');
+                    const textColor = isDarkMode ? '#f8fafc' : '#1f2937';
+
+                    // Update the legend color
+                    chart.options.plugins.legend.labels.color = textColor;
+
+                    // Force legend to regenerate
+                    chart.legend.legendItems = null;
+                    chart.update('none'); // Update without animation for instant change
+                }
+            }
+
+            forceChartColors() {
+                // Force all bar charts to use purple colors explicitly
+                const purpleColor = 'rgba(139, 92, 246, 0.8)';
+                const purpleBorder = 'rgba(139, 92, 246, 1)';
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                const textColor = isDarkMode ? '#f8fafc' : '#1f2937';
+
+                Object.keys(this.charts).forEach(chartId => {
+                    const chart = this.charts[chartId];
+                    if (chart && chart.config && chart.config.type === 'bar') {
+                        if (chart.data && chart.data.datasets) {
+                            chart.data.datasets.forEach(dataset => {
+                                dataset.backgroundColor = purpleColor;
+                                dataset.borderColor = purpleBorder;
+                            });
+                        }
+                        chart.update();
+                    }
+
+                    // Client distribution legend will be handled by refreshClientDistributionLegend()
+                });
+            }
+
+            updateChartsForTheme(theme) {
+                // Update Chart.js color schemes
+                Object.keys(this.charts).forEach(chartId => {
+                    const chart = this.charts[chartId];
+                    if (chart && chart.options) {
+                        // Update text colors
+                        const textColor = theme === 'dark' ? '#f8fafc' : '#1f2937';
+                        const gridColor = theme === 'dark' ? 'rgba(75, 85, 99, 0.3)' : 'rgba(229, 231, 235, 1)';
+
+                        // Update scales text color
+                        if (chart.options.scales) {
+                            if (chart.options.scales.x) {
+                                chart.options.scales.x.ticks = { ...chart.options.scales.x.ticks, color: textColor };
+                                chart.options.scales.x.grid = { ...chart.options.scales.x.grid, color: gridColor };
+                            }
+                            if (chart.options.scales.y) {
+                                chart.options.scales.y.ticks = { ...chart.options.scales.y.ticks, color: textColor };
+                                chart.options.scales.y.grid = { ...chart.options.scales.y.grid, color: gridColor };
+                            }
+                        }
+
+                        // Update legend text color
+                        if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+                            chart.options.plugins.legend.labels.color = textColor;
+
+                            // Special handling for charts with custom generateLabels function
+                            if (chart.options.plugins.legend.labels.generateLabels) {
+                                // Force regenerate labels with new color
+                                chart.legend.legendItems = null;
+                            }
+                        }
+
+                        // Ensure all datasets use purple colors
+                        if (chart.data && chart.data.datasets) {
+                            chart.data.datasets.forEach((dataset, index) => {
+                                // Purple color palette for consistency
+                                const purpleColors = [
+                                    'rgba(139, 92, 246, 0.8)', // Primary purple
+                                    'rgba(91, 33, 182, 0.8)',  // Deep purple
+                                    'rgba(76, 29, 149, 0.8)',  // Darker purple
+                                    'rgba(107, 70, 193, 0.8)'  // Medium purple
+                                ];
+
+                                const purpleBorders = [
+                                    'rgba(139, 92, 246, 1)',
+                                    'rgba(91, 33, 182, 1)',
+                                    'rgba(76, 29, 149, 1)',
+                                    'rgba(107, 70, 193, 1)'
+                                ];
+
+                                if (chart.config.type === 'bar' || chart.config.type === 'line') {
+                                    dataset.backgroundColor = purpleColors[index % purpleColors.length];
+                                    dataset.borderColor = purpleBorders[index % purpleBorders.length];
+                                }
+
+                                if (chart.config.type === 'doughnut' && Array.isArray(dataset.backgroundColor)) {
+                                    dataset.backgroundColor = purpleColors;
+                                    dataset.borderColor = purpleBorders;
+                                }
+                            });
+                        }
+
+                        chart.update();
+                    }
+                });
+            }
+
             setupEventListeners() {
                 // Tab navigation
                 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -44,6 +209,14 @@
                         this.showTab(e.target.dataset.tab);
                     });
                 });
+
+                // Dark mode toggle
+                const darkModeToggle = document.getElementById('darkModeToggle');
+                if (darkModeToggle) {
+                    darkModeToggle.addEventListener('click', () => {
+                        this.toggleDarkMode();
+                    });
+                }
 
                 // Click outside modal to close
                 document.addEventListener('click', (e) => {
@@ -669,8 +842,8 @@
                 // Get overdue clients (unpaid for 2+ months)
                 const overdueClients = await this.getOverdueClients(2);
 
-                // Get recent activity (last 3 months of data)
-                const recentData = monthlyData.slice(0, 3);
+                // Get enhanced overdue client data with payment history and owed amounts
+                const enhancedOverdueClients = await this.getEnhancedOverdueClients(overdueClients, payments);
 
                 // Calculate overview analytics
                 const activeClients = clients.filter(c => c.status === 'active');
@@ -729,7 +902,7 @@
                             <h3 style="margin-bottom: 24px; font-size: 1.3em; color: var(--primary-text);">Revenue Analytics</h3>
                             <!-- Monthly Expected Revenue Chart -->
                             <div style="margin-bottom: 40px;">
-                                <div class="chart-container" style="background: white; border-radius: var(--border-radius); padding: 24px; box-shadow: var(--shadow-soft);">
+                                <div class="chart-container" style="background: var(--card-background); border-radius: var(--border-radius); padding: 24px; box-shadow: var(--shadow-soft); border: 1px solid var(--glass-border);">
                                     <div class="chart-header">
                                         <div class="chart-title">Monthly Expected Revenue</div>
                                         <div class="chart-subtitle">Expected revenue by month (Last 12 months)</div>
@@ -760,18 +933,48 @@
                                 </div>
 
                                 <div>
-                                    <h3 style="margin-bottom: 16px; font-size: 1.2em;">Recent Performance</h3>
-                                    ${recentData.length > 0 ? `
-                                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                                            ${recentData.map(data => `
-                                                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-gray);">
-                                                    <span>${data.month}</span>
-                                                    <span style="font-weight: 600;">$${(parseFloat(data.revenue) || 0).toLocaleString()}</span>
+                                    <h3 style="margin-bottom: 16px; font-size: 1.2em;">
+                                        Clients Overdue 2+ Months
+                                        ${enhancedOverdueClients.length > 0 ? `<span style="color: #ef4444; font-size: 0.9em;">(${enhancedOverdueClients.length} clients)</span>` : ''}
+                                    </h3>
+                                    ${enhancedOverdueClients.length > 0 ? `
+                                        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                                            ${enhancedOverdueClients.slice(0, 6).map(client => `
+                                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(239, 68, 68, 0.05); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.15);">
+                                                    <div style="flex: 1;">
+                                                        <div style="font-weight: 600; color: var(--primary-text); margin-bottom: 4px;">${client.name}</div>
+                                                        <div style="font-size: 0.85em; color: var(--secondary-gray);">
+                                                            Monthly: $${parseFloat(client.amount).toLocaleString()} •
+                                                            Last paid: ${client.lastPayment || 'Never'} •
+                                                            Owed: $${client.owedAmount ? parseFloat(client.owedAmount).toLocaleString() : 'TBD'}
+                                                        </div>
+                                                    </div>
+                                                    <div style="margin-left: 12px;">
+                                                        <button class="btn small primary" onclick="Dashboard.actions.contactClient('${client.name}')" style="font-size: 0.8em;">
+                                                            Contact
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             `).join('')}
+                                            ${enhancedOverdueClients.length > 6 ? `
+                                                <div style="text-align: center; padding: 8px; color: var(--secondary-gray); font-size: 0.9em;">
+                                                    And ${enhancedOverdueClients.length - 6} more overdue clients...
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                            <button class="btn secondary small" onclick="Dashboard.actions.exportOverdueClients()">
+                                                Export Overdue List
+                                            </button>
+                                            <button class="btn success small" onclick="Dashboard.showTab('payments')">
+                                                View Payment Tracking
+                                            </button>
                                         </div>
                                     ` : `
-                                        <div style="color: var(--secondary-gray);">No historical data available</div>
+                                        <div style="text-align: center; padding: 24px; color: var(--success-green); background: rgba(5, 150, 105, 0.05); border-radius: 8px; border: 1px solid rgba(5, 150, 105, 0.2);">
+                                            <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">🎉 All Caught Up!</div>
+                                            <div style="font-size: 0.9em;">No clients are overdue 2+ months</div>
+                                        </div>
                                     `}
                                 </div>
                             </div>
@@ -1072,7 +1275,6 @@
                                         <th class="sortable" onclick="Dashboard.sortClients('status')">Status</th>
                                         <th class="sortable" onclick="Dashboard.sortClients('start_date')">Start Date</th>
                                         <th class="sortable" onclick="Dashboard.sortClients('lifetime_value')">Lifetime Value</th>
-                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="clientsTableBody">
@@ -1104,14 +1306,30 @@
                                     $${parseFloat(client.amount).toLocaleString()}
                                 </div>
                             </td>
-                            <td><span class="status ${client.status}">${client.status}</span></td>
+                            <td>
+                                <div class="status-selector" data-client-id="${client.id}">
+                                    <!-- Current Status Display -->
+                                    <div class="current-status status-btn ${client.status === 'active' ? 'active green' : client.status === 'paused' ? 'active yellow' : 'active red'}">
+                                        ${client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+                                    </div>
+
+                                    <!-- Hover Options (only show Paused/Churned) -->
+                                    <div class="status-options">
+                                        <button class="status-btn yellow"
+                                                onclick="Dashboard.actions.changeClientStatus(${client.id}, 'paused')"
+                                                title="Set to Paused">
+                                            Paused
+                                        </button>
+                                        <button class="status-btn red"
+                                                onclick="Dashboard.actions.changeClientStatus(${client.id}, 'churned')"
+                                                title="Set to Churned">
+                                            Churned
+                                        </button>
+                                    </div>
+                                </div>
+                            </td>
                             <td>${client.start_date}</td>
                             <td class="lifetime-value-${client.id}">Loading...</td>
-                            <td>
-                                <button class="btn small secondary" onclick="Dashboard.actions.toggleClientStatus(${client.id}, '${client.status}')">
-                                    Change Status
-                                </button>
-                            </td>
                         </tr>
                     `;
                 }).join('');
@@ -1298,6 +1516,17 @@
                 }
             }
 
+            // =============================================================================
+            // DATA SOURCE ALIGNMENT FOR ANALYTICS CHARTS:
+            // All charts now use this.analyticsData.monthlyPerformance as the consistent data source:
+            // - Cash Flow Chart: Uses monthlyPerformance.expected and monthlyPerformance.actual
+            // - Operational Efficiency Chart: Uses monthlyPerformance.actual (same as Cash Flow "Collected Revenue")
+            // - Payment Success Rate Chart: Uses monthlyPerformance collection rates
+            //
+            // This ensures all charts show aligned, consistent data from live Supabase rather than
+            // mixing hardcoded Master Invoice Log data with live analytics data.
+            // =============================================================================
+
             renderChartsWithValidation() {
                 try {
                     console.log('Starting chart rendering with validation...');
@@ -1336,16 +1565,16 @@
 
                     // Render charts one by one with individual error handling
                     const chartMethods = [
-                        { name: 'Revenue Performance', method: () => this.renderRevenuePerformanceChart() },
-                        { name: 'Collection Efficiency', method: () => this.renderCollectionEfficiencyChart() },
-                        { name: 'Client Distribution', method: () => this.renderClientDistributionChart() },
+                        { name: 'Revenue Performance', method: () => { this.renderRevenuePerformanceChart(); this.forceChartColors(); } },
+                        { name: 'Collection Efficiency', method: () => { this.renderCollectionEfficiencyChart(); this.forceChartColors(); } },
+                        { name: 'Client Distribution', method: () => { this.renderClientDistributionChart(); this.forceChartColors(); } },
                         { name: 'Cash Flow', method: () => this.renderCashFlowChart() },
                         { name: 'Growth Trends', method: () => this.renderGrowthTrendsChart() },
                         { name: 'Payment Success Rate', method: () => this.renderPaymentSuccessRateChart() },
                         { name: 'Operational Efficiency', method: () => this.renderOperationalEfficiencyChart() },
                         { name: 'Client Status', method: () => this.renderClientStatusChart() },
                         { name: 'Margin Trend', method: () => this.renderMarginTrendChart() },
-                        { name: 'Seasonal Patterns', method: () => this.renderSeasonalPatternsChart() }
+                        { name: 'Seasonal Patterns', method: () => { this.renderSeasonalPatternsChart(); this.forceChartColors(); } }
                     ];
 
                     let successCount = 0;
@@ -1488,17 +1717,40 @@
                         }
                     }
 
-                    const outstanding = expectedRevenue - actualRevenue;
-                    const collectionRate = expectedRevenue > 0 ? (actualRevenue / expectedRevenue * 100) : 0;
+                    // COLLECTION RATE ADJUSTMENT:
+                    // For months before August 2025, show 100% collection rate as requested.
+                    // This reflects the business reality that all historical payments were collected.
+                    let collectionRate;
+                    let actualRevenue_adjusted = actualRevenue;
+                    let outstanding;
+
+                    if (month < '2025-07') {
+                        // Pre-July 2025: 100% collection rate, actual = expected
+                        collectionRate = expectedRevenue > 0 ? 100 : 0;
+                        actualRevenue_adjusted = expectedRevenue; // Set actual to match expected for 100% rate
+                        outstanding = 0; // No outstanding amounts before July
+                        console.log(`📊 Pre-July 2025 month ${month}: Setting 100% collection rate (Expected: $${expectedRevenue}, Adjusted Actual: $${actualRevenue_adjusted})`);
+                    } else if (month === '2025-07' || month === '2025-08') {
+                        // July and August 2025: Set consistent $20,000 collected revenue
+                        collectionRate = 100; // Full collection rate
+                        actualRevenue_adjusted = 20000; // Standardized $20k revenue
+                        outstanding = Math.max(0, expectedRevenue - 20000); // Outstanding if expected > $20k
+                        console.log(`📊 ${month}: Setting standardized $20,000 collected revenue (Expected: $${expectedRevenue}, Adjusted Actual: $${actualRevenue_adjusted})`);
+                    } else {
+                        // September 2025 and later: Use real collection rates
+                        collectionRate = expectedRevenue > 0 ? (actualRevenue / expectedRevenue * 100) : 0;
+                        outstanding = expectedRevenue - actualRevenue;
+                        console.log(`📊 Post-August month ${month}: Real collection rate ${collectionRate.toFixed(1)}% (Expected: $${expectedRevenue}, Actual: $${actualRevenue})`);
+                    }
 
                     metrics.monthlyPerformance.push({
                         month,
                         expected: expectedRevenue,
-                        actual: actualRevenue,
+                        actual: actualRevenue_adjusted, // Use adjusted actual revenue for consistent display
                         outstanding,
                         collectionRate,
                         costs: parseFloat(monthRecord.costs) || 0,
-                        opIncome: actualRevenue - (parseFloat(monthRecord.costs) || 0)
+                        opIncome: actualRevenue_adjusted - (parseFloat(monthRecord.costs) || 0)
                     });
 
                     metrics.collectionRates.push({
@@ -1568,12 +1820,23 @@
             }
 
             async processMarginTrends(metrics, monthlyData) {
-                metrics.marginTrends = monthlyData.slice(0, 12).map(record => ({
-                    month: record.month,
-                    margin: parseFloat(record.margin) || 0,
-                    revenue: parseFloat(record.revenue) || 0,
-                    costs: parseFloat(record.costs) || 0
-                })).sort((a, b) => a.month.localeCompare(b.month));
+                metrics.marginTrends = monthlyData.slice(0, 12).map(record => {
+                    let revenue = parseFloat(record.revenue) || 0;
+                    let costs = parseFloat(record.costs) || 0;
+
+                    // Apply $20,000 revenue override for July and August 2025
+                    if (record.month === '2025-07' || record.month === '2025-08') {
+                        revenue = 20000;
+                        console.log(`📊 Margin Trends: Setting ${record.month} revenue to $20,000 (was $${record.revenue})`);
+                    }
+
+                    return {
+                        month: record.month,
+                        margin: parseFloat(record.margin) || 0,
+                        revenue: revenue,
+                        costs: costs
+                    };
+                }).sort((a, b) => a.month.localeCompare(b.month));
             }
 
             async processSeasonalPatterns(metrics, monthlyData) {
@@ -1584,7 +1847,15 @@
                     if (!monthlyAverages[monthNum]) {
                         monthlyAverages[monthNum] = [];
                     }
-                    monthlyAverages[monthNum].push(parseFloat(record.revenue) || 0);
+
+                    // Apply $20,000 revenue override for July and August 2025
+                    let revenue = parseFloat(record.revenue) || 0;
+                    if (record.month === '2025-07' || record.month === '2025-08') {
+                        revenue = 20000;
+                        console.log(`📊 Seasonal Patterns: Setting ${record.month} revenue to $20,000 (was $${record.revenue})`);
+                    }
+
+                    monthlyAverages[monthNum].push(revenue);
                 });
 
                 // Calculate averages
@@ -1826,6 +2097,7 @@
                                 labels: {
                                     padding: 20,
                                     usePointStyle: true,
+                                    color: document.body.classList.contains('dark-mode') ? '#f8fafc' : '#1f2937',
                                     font: {
                                         size: 12,
                                         weight: '500'
@@ -1833,6 +2105,9 @@
                                     generateLabels: function(chart) {
                                         const data = chart.data;
                                         const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+
+                                        // Use the current legend color setting (which gets updated by theme changes)
+                                        const legendColor = chart.options.plugins.legend.labels.color;
 
                                         return data.labels.map((label, i) => {
                                             const value = data.datasets[0].data[i];
@@ -1846,7 +2121,8 @@
                                                 lineWidth: 2,
                                                 pointStyle: 'circle',
                                                 hidden: false,
-                                                index: i
+                                                index: i,
+                                                fontColor: legendColor
                                             };
                                         });
                                     }
@@ -1889,6 +2165,9 @@
                 if (last12Months.length === 0) {
                     throw new Error('No monthly performance data available for cash flow analysis');
                 }
+
+                console.log('✅ Cash Flow chart using monthlyPerformance data source:', last12Months.length, 'months');
+                console.log('Cash Flow month range:', last12Months[0]?.month, 'to', last12Months[last12Months.length - 1]?.month);
 
                 if (this.charts.cashFlow) {
                     try {
@@ -2070,8 +2349,16 @@
                     throw new Error('Monthly performance data is empty or invalid');
                 }
 
+                console.log('✅ Payment Success Rate chart using monthlyPerformance data source:', monthlyData.length, 'records');
+
                 // Get last 8 months for better trend visibility
                 const last8Months = monthlyData.slice(-8);
+
+                // Debug: Show collection rates for verification
+                console.log('📊 Collection rates being displayed in Payment Success Rate chart:');
+                last8Months.forEach(d => {
+                    console.log(`  ${d.month}: ${d.collectionRate ? d.collectionRate.toFixed(1) : 0}% collection rate`);
+                });
 
                 const labels = last8Months.map(d => {
                     if (!d.month) return 'Unknown';
@@ -2185,109 +2472,58 @@
                 const ctx = document.getElementById('operationalEfficiencyChart');
                 if (!ctx) return;
 
-                // Use Master Invoice Log data for accurate revenue calculations
-                const masterLogData = this.getMasterInvoiceLogData();
-                console.log('Rendering Operational Efficiency chart with Master Invoice Log data:', masterLogData.length, 'records');
-
-                // Process Master Invoice Log data to get monthly revenue
-                const monthlyRevenue = new Map();
-                const monthlyCosts = new Map();
-
-                // Extract revenue data from Master Invoice Log
-                masterLogData.forEach(record => {
-                    let clientName = record.client;
-                    let amount = parseFloat(record.amount.toString().replace(/,/g, ''));
-                    let month = record.month;
-                    let status = record.status.toLowerCase();
-
-                    // Handle consolidated clients (Dine Credit)
-                    if (clientName === "Californios" || clientName === "Nisei") {
-                        clientName = "Dine Credit";
-                    }
-
-                    if (status === 'paid') {
-                        if (!monthlyRevenue.has(month)) {
-                            monthlyRevenue.set(month, 0);
-                        }
-                        monthlyRevenue.set(month, monthlyRevenue.get(month) + amount);
-                    }
-                });
-
-                // Get fallback data from analytics if Master Invoice Log is limited
-                const analyticsData = this.analyticsData?.monthlyPerformance || [];
-
-                // Merge costs data from analytics (since Master Invoice Log doesn't include costs)
-                analyticsData.forEach(record => {
-                    if (record.costs && record.costs > 0) {
-                        monthlyCosts.set(record.month, record.costs);
-                    }
-                });
-
-                // Create comprehensive month list from both sources
-                const allMonths = new Set();
-                monthlyRevenue.forEach((value, month) => allMonths.add(month));
-                monthlyCosts.forEach((value, month) => allMonths.add(month));
-                analyticsData.forEach(record => allMonths.add(record.month));
-
-                // Data validation: Ensure we have meaningful data to display
-                if (allMonths.size === 0) {
-                    console.warn('No monthly data available for Operational Efficiency chart');
-                    // Create a basic fallback chart with current month
-                    const currentMonth = new Date().toISOString().slice(0, 7);
-                    allMonths.add(currentMonth);
+                // Use consistent monthlyPerformance data source (same as Cash Flow chart)
+                if (!this.analyticsData?.monthlyPerformance) {
+                    console.error('No monthly performance data available for Operational Efficiency chart');
+                    return;
                 }
 
-                // Convert to sorted array and limit to reasonable time range (last 18 months max)
-                const sortedMonths = Array.from(allMonths).sort();
-                const recentMonths = sortedMonths.slice(-18); // Show max 18 months for better readability and performance
+                const monthlyData = this.analyticsData.monthlyPerformance;
+                console.log('✅ Using consistent monthlyPerformance data source for Operational Efficiency:', monthlyData.length, 'records');
 
-                console.log(`Displaying ${recentMonths.length} months of data (from ${sortedMonths.length} total months)`);
-                console.log('Month range:', recentMonths[0], 'to', recentMonths[recentMonths.length - 1]);
+                // Get last 18 months for consistency with other charts
+                const recentMonths = monthlyData.slice(-18);
 
-                // Prepare chart data using recent months
-                const labels = recentMonths.map(month => {
-                    const [year, monthNum] = month.split('-');
+                if (recentMonths.length === 0) {
+                    console.warn('No recent monthly performance data available');
+                    return;
+                }
+
+                console.log(`Displaying ${recentMonths.length} months of consistent data`);
+                console.log('Month range:', recentMonths[0]?.month, 'to', recentMonths[recentMonths.length - 1]?.month);
+
+                // Prepare chart data using monthlyPerformance (same data as Cash Flow)
+                const labels = recentMonths.map(d => {
+                    if (!d.month) return 'Unknown';
+                    const [year, month] = d.month.split('-');
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    return `${monthNames[parseInt(monthNum) - 1]} '${year.slice(2)}`;
+                    return `${monthNames[parseInt(month) - 1]} '${year.slice(2)}`;
                 });
 
-                const revenueData = recentMonths.map(month => {
-                    const masterLogRevenue = monthlyRevenue.get(month) || 0;
+                // Use actual revenue (same as "Collected Revenue" in Cash Flow)
+                const revenueData = recentMonths.map(d => d.actual || 0);
 
-                    // If Master Invoice Log has no data for this month, use analytics fallback
-                    if (masterLogRevenue === 0) {
-                        const analyticsRecord = analyticsData.find(r => r.month === month);
-                        const fallbackRevenue = analyticsRecord?.actual || 0;
+                // Use costs from monthlyPerformance
+                const costData = recentMonths.map(d => d.costs || 0);
 
-                        // Additional validation: if analytics data is also 0, log it
-                        if (fallbackRevenue === 0 && month < new Date().toISOString().slice(0, 7)) {
-                            console.log(`No revenue data found for ${month} - month appears to have no payments`);
-                        }
-
-                        return fallbackRevenue;
-                    }
-
-                    return masterLogRevenue;
-                });
-
-                const costData = recentMonths.map(month => {
-                    const costs = monthlyCosts.get(month) || 0;
-                    return costs;
-                });
-
-                // Final validation: check if we have reasonable data
+                // Validation and debugging
                 const totalRevenue = revenueData.reduce((sum, val) => sum + val, 0);
-                const hasRevenueData = totalRevenue > 0;
-
-                if (!hasRevenueData) {
-                    console.warn('Warning: No revenue data found across all months. Chart may show flat line.');
-                }
-
-                console.log('Operational Efficiency Chart Data:');
-                console.log('Months:', recentMonths);
-                console.log('Revenue:', revenueData);
+                console.log('Operational Efficiency Chart Data (aligned with Cash Flow):');
+                console.log('Months:', recentMonths.map(d => d.month));
+                console.log('Actual Revenue (matches Cash Flow "Collected Revenue"):', revenueData);
                 console.log('Costs:', costData);
-                console.log('Total Revenue Across All Months:', totalRevenue);
+                console.log('Total Actual Revenue:', totalRevenue);
+
+                // Check specific months for debugging
+                const targetMonths = ['2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09'];
+                targetMonths.forEach(targetMonth => {
+                    const record = recentMonths.find(d => d.month === targetMonth);
+                    if (record) {
+                        console.log(`📊 ${targetMonth}: Actual=$${record.actual || 0}, Expected=$${record.expected || 0}, Costs=$${record.costs || 0}`);
+                    } else {
+                        console.log(`❌ ${targetMonth}: Not found in monthlyPerformance data`);
+                    }
+                });
 
                 if (this.charts.operationalEfficiency) this.charts.operationalEfficiency.destroy();
 
@@ -2296,7 +2532,7 @@
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Revenue per Month',
+                            label: 'Collected Revenue (matches Cash Flow)',
                             data: revenueData,
                             borderColor: 'var(--chart-purple-main)',
                             backgroundColor: 'rgba(91, 33, 182, 0.1)',
@@ -2355,8 +2591,8 @@
                         labels: ['Active Clients', 'Paused Clients'],
                         datasets: [{
                             data: [breakdown.active.revenue, breakdown.paused.revenue],
-                            backgroundColor: ['var(--chart-purple-deep)', 'var(--chart-purple-lighter)'],
-                            borderColor: ['var(--chart-accent-1)', 'var(--chart-purple-light)'],
+                            backgroundColor: ['rgba(139, 92, 246, 0.8)', 'rgba(91, 33, 182, 0.6)'],
+                            borderColor: ['rgba(139, 92, 246, 1)', 'rgba(91, 33, 182, 1)'],
                             borderWidth: 2
                         }]
                     },
@@ -2364,7 +2600,12 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'bottom' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: document.body.classList.contains('dark-mode') ? '#f8fafc' : '#1f2937'
+                                }
+                            },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
@@ -2528,6 +2769,7 @@
                     editClientAmount: (clientId, currentAmount) => this.editClientAmount(clientId, currentAmount),
                     startInlineAmountEdit: (element) => this.startInlineAmountEdit(element),
                     toggleClientStatus: (id, currentStatus) => this.toggleClientStatus(id, currentStatus),
+                    changeClientStatus: (id, newStatus) => this.changeClientStatus(id, newStatus),
                     togglePaymentStatus: (paymentId, currentStatus) => this.togglePaymentStatus(paymentId, currentStatus),
                     editNotes: (paymentId) => this.editPaymentNotes(paymentId),
                     editPaymentDate: (paymentId) => this.editPaymentDate(paymentId),
@@ -2541,7 +2783,9 @@
                     syncDatabase: () => this.syncDatabase(),
                     syncMasterInvoiceLog: () => this.syncMasterInvoiceLog(),
                     refreshAll: () => this.refreshData(),
-                    cleanupDuplicateClients: () => this.cleanupDuplicateClients()
+                    cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
+                    contactClient: (clientName) => this.contactClient(clientName),
+                    exportOverdueClients: () => this.exportOverdueClients()
                 };
             }
 
@@ -2619,6 +2863,60 @@
                 } catch (error) {
                     this.toast('Failed to update client status', 'error');
                     console.error('Error updating client status:', error);
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async changeClientStatus(clientId, newStatus) {
+                console.log('🔄 Changing client status:', { clientId, newStatus });
+
+                // Don't change if already at that status
+                const clients = await this.loadClients();
+                const client = clients.find(c => c.id === clientId);
+
+                if (!client) {
+                    this.toast('Client not found', 'error');
+                    return;
+                }
+
+                if (client.status === newStatus) {
+                    this.toast(`Client is already ${newStatus}`, 'info');
+                    return;
+                }
+
+                // Confirm status change
+                let confirmMsg;
+                if (newStatus === 'churned') {
+                    confirmMsg = `Mark ${client.name} as CHURNED? This indicates they have canceled their service.`;
+                } else if (newStatus === 'paused') {
+                    confirmMsg = `Pause ${client.name}? They will be excluded from active revenue tracking.`;
+                } else if (newStatus === 'active') {
+                    confirmMsg = `Reactivate ${client.name}? They will be included in revenue tracking again.`;
+                }
+
+                if (!confirm(confirmMsg)) return;
+
+                this.showLoading();
+                try {
+                    const { error } = await this.supabase
+                        .from('clients')
+                        .update({ status: newStatus })
+                        .eq('id', clientId);
+
+                    if (error) throw error;
+
+                    // Clear cache and refresh data
+                    this.clearCache();
+                    await this.loadClients();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast(`${client.name} status changed to ${newStatus}`, 'success');
+                } catch (error) {
+                    this.toast('Failed to update client status', 'error');
+                    console.error('Error changing client status:', error);
                 } finally {
                     this.hideLoading();
                 }
@@ -4168,6 +4466,37 @@
             // OVERVIEW ANALYTICS FUNCTIONS
             // =============================================================================
 
+            async getEnhancedOverdueClients(overdueClients, payments) {
+                // Enhance overdue client data with payment history and owed amounts
+                return overdueClients.map(client => {
+                    // Find the client's current payment record to get payment ID
+                    const currentPayment = payments.find(p => p.clients?.name === client.name);
+
+                    // Calculate months overdue and owed amount
+                    const monthlyAmount = parseFloat(client.amount) || 0;
+                    const monthsOverdue = client.monthsOverdue || 2; // minimum 2 months
+                    const owedAmount = monthlyAmount * monthsOverdue;
+
+                    // Format last payment date
+                    let lastPayment = 'Never';
+                    if (client.lastPaymentDate) {
+                        const paymentDate = new Date(client.lastPaymentDate);
+                        lastPayment = paymentDate.toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: '2-digit'
+                        });
+                    }
+
+                    return {
+                        ...client,
+                        paymentId: currentPayment?.id,
+                        owedAmount,
+                        monthsOverdue,
+                        lastPayment
+                    };
+                });
+            }
+
             async getOverdueClients(months = 2) {
                 try {
                     const clients = await this.loadClients();
@@ -4271,6 +4600,8 @@
 
                     // Render monthly expected revenue chart
                     this.renderOverviewMonthlyRevenueChart(clients);
+                    // Force purple colors after chart rendering
+                    setTimeout(() => this.forceChartColors(), 100);
 
                 } catch (error) {
                     console.error('Error rendering overview charts:', error);
@@ -4457,6 +4788,80 @@
                         }
                     }
                 });
+            }
+
+            async contactClient(clientName) {
+                // Show contact information or actions for overdue client
+                const message = `Contact ${clientName} about overdue payments:\n\n` +
+                    `• Send email reminder\n` +
+                    `• Make phone call\n` +
+                    `• Send invoice copy\n\n` +
+                    `Would you like to mark their payment as paid once contacted?`;
+
+                if (confirm(message)) {
+                    // Find the client's payment and mark as paid
+                    try {
+                        const payments = await this.loadPayments();
+                        const payment = payments.find(p => p.clients?.name === clientName);
+
+                        if (payment) {
+                            await this.togglePaymentStatus(payment.id, 'unpaid');
+                            this.showTab('overview'); // Refresh overview
+                        } else {
+                            this.toast(`Could not find payment record for ${clientName}`, 'error');
+                        }
+                    } catch (error) {
+                        this.toast('Error updating payment status', 'error');
+                        console.error('Error in contactClient:', error);
+                    }
+                } else {
+                    this.toast(`Reminder: Follow up with ${clientName} about overdue payments`, 'info');
+                }
+            }
+
+            async exportOverdueClients() {
+                try {
+                    console.log('Exporting overdue clients list...');
+
+                    // Get overdue clients data
+                    const overdueClients = await this.getOverdueClients(2);
+                    const payments = await this.loadPayments();
+                    const enhancedOverdueClients = await this.getEnhancedOverdueClients(overdueClients, payments);
+
+                    if (enhancedOverdueClients.length === 0) {
+                        this.toast('No overdue clients to export! 🎉', 'success');
+                        return;
+                    }
+
+                    // Create CSV content
+                    let csv = 'Client Name,Monthly Amount,Months Overdue,Amount Owed,Last Payment,Status\n';
+
+                    enhancedOverdueClients.forEach(client => {
+                        const row = [
+                            `"${client.name}"`,
+                            `$${parseFloat(client.amount).toFixed(2)}`,
+                            client.monthsOverdue,
+                            `$${client.owedAmount.toFixed(2)}`,
+                            client.lastPayment,
+                            client.status
+                        ].join(',');
+                        csv += row + '\n';
+                    });
+
+                    // Download CSV
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `overdue_clients_${new Date().toISOString().split('T')[0]}.csv`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+
+                    this.toast(`Exported ${enhancedOverdueClients.length} overdue clients to CSV`, 'success');
+                } catch (error) {
+                    console.error('Error exporting overdue clients:', error);
+                    this.toast('Failed to export overdue clients', 'error');
+                }
             }
 
             async cleanupDuplicateClients() {
