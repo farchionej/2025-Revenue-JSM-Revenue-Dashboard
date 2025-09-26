@@ -1476,11 +1476,23 @@
         .dark-mode .btn {
             background: var(--glass-background);
             color: var(--primary-text);
-            border-color: var(--glass-border);
+            border: 1px solid var(--glass-border);
         }
 
         .dark-mode .btn:hover {
             background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .dark-mode .btn.primary {
+            background: var(--chart-purple-light);
+            color: #ffffff;
+            border: 1px solid var(--chart-purple-light);
+        }
+
+        .dark-mode .btn.primary:hover {
+            background: rgba(139, 92, 246, 0.9);
+            transform: translateY(-1px);
         }
 
         .dark-mode .header {
@@ -1685,18 +1697,27 @@
         .dark-mode .filter-btn {
             background: var(--glass-background);
             color: var(--primary-text);
-            border-color: var(--glass-border);
+            border: 1px solid var(--glass-border);
         }
 
         .dark-mode .filter-btn.active {
             background: var(--chart-purple-light);
             color: #ffffff;
-            border-color: var(--chart-purple-light);
+            border: 1px solid var(--chart-purple-light);
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
         }
 
         .dark-mode .filter-btn:hover {
-            background: rgba(139, 92, 246, 0.1);
-            border-color: var(--chart-purple-light);
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--primary-text);
+            border: 1px solid var(--chart-purple-light);
+            transform: translateY(-1px);
+        }
+
+        .dark-mode .filter-btn.active:hover {
+            background: rgba(139, 92, 246, 0.9);
+            color: #ffffff;
+            transform: translateY(-1px);
         }
 
         .dark-mode .btn.secondary {
