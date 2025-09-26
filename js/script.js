@@ -987,6 +987,11 @@
                                                 </div>
                                                 <div style="max-height: 300px; overflow-y: auto;">
                                                     ${activeClients.sort((a, b) => a.name.localeCompare(b.name)).map(client => {
+                                                        // Debug: Log client data structure
+                                                        if (client.name && client.name.toLowerCase().includes('crepe')) {
+                                                            console.log('Crepe client data:', client);
+                                                        }
+
                                                         // Check for potential duplicates (normalize names)
                                                         const normalizedName = client.name.toLowerCase().replace(/^the\s+/, '').replace(/\s+/g, '');
                                                         const isDuplicate = activeClients.some(other =>
@@ -3035,10 +3040,14 @@
 
                 // Get client info for confirmation
                 const clients = await this.loadClients();
+                console.log('Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
+                console.log('Looking for client ID:', clientId);
+
                 const client = clients.find(c => c.id === clientId);
 
                 if (!client) {
-                    this.toast('Client not found', 'error');
+                    console.error('Client not found. Available IDs:', clients.map(c => c.id));
+                    this.toast(`Client not found. ID: ${clientId}`, 'error');
                     return;
                 }
 
