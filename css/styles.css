@@ -1754,6 +1754,90 @@
             transform: translateY(-1px);
         }
 
+        /* Status Toggle Dark Mode Styles */
+        .dark-mode .status-toggle {
+            background: var(--card-background);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .dark-mode .status-toggle-btn {
+            color: var(--primary-text);
+        }
+
+        .dark-mode .status-toggle-btn.active {
+            color: #ffffff;
+        }
+
+        .dark-mode .status-toggle-btn:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--secondary-text);
+            border: 1px solid var(--glass-border);
+        }
+
+        .dark-mode .status-toggle-btn:not(.active):hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--primary-text);
+        }
+
+        /* Keep the same green/gray colors for paid/unpaid in dark mode */
+        .dark-mode .status-toggle-btn.active[title*="paid"]:not([title*="unpaid"]) {
+            background: var(--success-green);
+        }
+
+        .dark-mode .status-toggle-btn.active[title*="unpaid"] {
+            background: #6b7280;
+        }
+
+        /* Enhanced Status Button Dark Mode Styles */
+        .dark-mode .status-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--primary-text);
+            border-color: var(--glass-border);
+        }
+
+        .dark-mode .status-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--primary-text);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .dark-mode .status-btn.active {
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Maintain color-coded status buttons in dark mode */
+        .dark-mode .status-btn.green {
+            border-color: #10b981;
+            color: #34d399;
+        }
+
+        .dark-mode .status-btn.green.active {
+            background: #10b981;
+            color: white;
+        }
+
+        .dark-mode .status-btn.yellow {
+            border-color: #f59e0b;
+            color: #fbbf24;
+        }
+
+        .dark-mode .status-btn.yellow.active {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .dark-mode .status-btn.red {
+            border-color: #ef4444;
+            color: #f87171;
+        }
+
+        .dark-mode .status-btn.red.active {
+            background: #ef4444;
+            color: white;
+        }
+
         .dark-mode .btn.secondary {
             background: var(--glass-background);
             color: var(--primary-text);
