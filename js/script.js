@@ -4858,6 +4858,8 @@
                 });
 
                 // Generate last 12 months with historical progression
+                const currentMonthStr = currentDate.toISOString().slice(0, 7); // Current month in YYYY-MM format
+
                 for (let i = 11; i >= 0; i--) {
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
                     const monthStr = date.toISOString().slice(0, 7); // YYYY-MM format
@@ -4865,22 +4867,32 @@
 
                     let monthlyRevenue = 0;
 
-                    // Calculate revenue for this month based on which clients were active
-                    clientAmountHistory.forEach((amountHistory, clientName) => {
-                        // Find the appropriate amount for this month
-                        let clientAmount = 0;
-                        for (const period of amountHistory) {
-                            if (monthStr >= period.startDate.slice(0, 7)) {
-                                clientAmount = period.amount;
-                            }
-                        }
+                    // Use real-time calculation for current month, historical for others
+                    if (monthStr === currentMonthStr) {
+                        // DYNAMIC CALCULATION: Use real-time active client data for current month
+                        monthlyRevenue = activeClients.reduce((sum, client) => {
+                            return sum + (parseFloat(client.amount) || 0);
+                        }, 0);
 
-                        // Only include if client had started by this month
-                        const clientStartDate = clientStartDates.get(clientName);
-                        if (clientStartDate && monthStr >= clientStartDate.slice(0, 7)) {
-                            monthlyRevenue += clientAmount;
-                        }
-                    });
+                        console.log(`Dynamic calculation for ${monthStr}: $${monthlyRevenue} from ${activeClients.length} active clients`);
+                    } else {
+                        // HISTORICAL CALCULATION: Use hardcoded timeline for past months
+                        clientAmountHistory.forEach((amountHistory, clientName) => {
+                            // Find the appropriate amount for this month
+                            let clientAmount = 0;
+                            for (const period of amountHistory) {
+                                if (monthStr >= period.startDate.slice(0, 7)) {
+                                    clientAmount = period.amount;
+                                }
+                            }
+
+                            // Only include if client had started by this month
+                            const clientStartDate = clientStartDates.get(clientName);
+                            if (clientStartDate && monthStr >= clientStartDate.slice(0, 7)) {
+                                monthlyRevenue += clientAmount;
+                            }
+                        });
+                    }
 
                     monthsData.push({
                         month: monthStr,
@@ -4903,9 +4915,10 @@
                         monthlyTotals.set(month, monthlyTotals.get(month) + amount);
                     });
 
-                    // Update with actual data where available (September 2025)
+                    // Update with actual data where available, but preserve dynamic calculation for current month
                     monthsData.forEach(monthData => {
-                        if (monthlyTotals.has(monthData.month)) {
+                        if (monthlyTotals.has(monthData.month) && monthData.month !== currentMonthStr) {
+                            // Only override historical months, not current month (preserve dynamic calculation)
                             monthData.expected = monthlyTotals.get(monthData.month);
                         }
                     });
