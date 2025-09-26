@@ -854,6 +854,25 @@
                 // Calculate dynamic Google vs Non-Google income
                 const googleIncome = 215000; // Static as requested
                 const monthlyRecurringRevenue = totalExpectedRevenue; // Same as totalExpectedRevenue
+
+                // Debug: Show overview calculation
+                console.log('=== OVERVIEW MRR CALCULATION ===');
+                console.log('Total Expected Revenue (MRR):', totalExpectedRevenue);
+                console.log('Active clients:', activeClients.length);
+                console.log('All clients in database:', clients.length);
+
+                // Show all clients with status
+                console.log('=== ALL CLIENTS IN DATABASE ===');
+                clients.forEach(client => {
+                    console.log(`${client.name}: $${parseFloat(client.amount) || 0} (Status: ${client.status})`);
+                });
+
+                console.log('=== ACTIVE CLIENTS ONLY ===');
+                activeClients.forEach(client => {
+                    console.log(`${client.name}: $${parseFloat(client.amount) || 0}`);
+                });
+                console.log('=== END OVERVIEW ===');
+
                 const nonGoogleIncome = monthlyRecurringRevenue * 12; // Annual projection
                 const totalIncome = googleIncome + nonGoogleIncome;
                 const googlePercentage = ((googleIncome / totalIncome) * 100).toFixed(1);
@@ -958,6 +977,33 @@
                                                 <div style="font-size: 0.9em; color: var(--secondary-text); margin-bottom: 4px;">Progress to Target</div>
                                                 <div style="font-weight: 600; color: #059669;">${currentProgress}% achieved</div>
                                                 <div style="font-size: 0.85em; color: var(--secondary-text); margin-top: 4px;">$${gapToTarget.toLocaleString()} needed to reach target</div>
+                                            </div>
+
+                                            <!-- Debug Table -->
+                                            <div style="margin-top: 20px; padding: 16px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                                    <div style="font-size: 0.9em; color: var(--secondary-text);">Active Clients in MRR Calculation (${activeClients.length} clients):</div>
+                                                    <button onclick="Dashboard.actions.refreshAll()" style="padding: 4px 8px; background: #22C55E; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;">Refresh Data</button>
+                                                </div>
+                                                <div style="max-height: 300px; overflow-y: auto;">
+                                                    ${activeClients.sort((a, b) => a.name.localeCompare(b.name)).map(client => `
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                                            <span style="color: var(--primary-text); flex: 1;">${client.name}</span>
+                                                            <span style="color: var(--secondary-text); font-size: 0.8em; margin: 0 12px;">Status: ${client.status}</span>
+                                                            <span style="color: var(--primary-text); font-weight: 600; min-width: 80px; text-align: right;">$${(parseFloat(client.amount) || 0).toLocaleString()}</span>
+                                                        </div>
+                                                    `).join('')}
+                                                    <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 8px; border-top: 2px solid rgba(255, 255, 255, 0.2); font-weight: 600;">
+                                                        <span style="color: var(--primary-text);">Total MRR (Should be $17,610):</span>
+                                                        <span style="color: ${monthlyRecurringRevenue === 17610 ? '#22C55E' : '#EF4444'};">$${monthlyRecurringRevenue.toLocaleString()}</span>
+                                                    </div>
+                                                    <div style="margin-top: 8px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                                                        <div style="font-size: 0.85em; color: var(--primary-text);">
+                                                            Difference: $${(monthlyRecurringRevenue - 17610).toLocaleString()}
+                                                            ${monthlyRecurringRevenue > 17610 ? 'too high' : 'too low'}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -4854,6 +4900,19 @@
 
                 // Dynamic non-Google income: MRR × 12 from active clients
                 const activeClients = clients.filter(c => c.status === 'active');
+
+                // Debug: Log each client and their amount
+                console.log('=== MRR CALCULATION BREAKDOWN ===');
+                console.log('Active clients found:', activeClients.length);
+                let debugTotal = 0;
+                activeClients.forEach(client => {
+                    const amount = parseFloat(client.amount) || 0;
+                    debugTotal += amount;
+                    console.log(`${client.name}: $${amount.toLocaleString()}`);
+                });
+                console.log(`Total MRR: $${debugTotal.toLocaleString()}`);
+                console.log('=== END BREAKDOWN ===');
+
                 const monthlyRecurringRevenue = activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
                 const nonGoogleIncome = monthlyRecurringRevenue * 12;
                 const totalIncome = googleIncome + nonGoogleIncome;
