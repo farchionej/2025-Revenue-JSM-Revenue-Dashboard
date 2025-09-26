@@ -851,6 +851,19 @@
                 const paidRevenue = payments.filter(p => p.status === 'paid' && p.clients?.status === 'active')
                     .reduce((sum, p) => sum + (parseFloat(p.clients?.amount) || 0), 0);
 
+                // Calculate dynamic Google vs Non-Google income
+                const googleIncome = 215000; // Static as requested
+                const monthlyRecurringRevenue = totalExpectedRevenue; // Same as totalExpectedRevenue
+                const nonGoogleIncome = monthlyRecurringRevenue * 12; // Annual projection
+                const totalIncome = googleIncome + nonGoogleIncome;
+                const googlePercentage = ((googleIncome / totalIncome) * 100).toFixed(1);
+                const nonGooglePercentage = ((nonGoogleIncome / totalIncome) * 100).toFixed(1);
+
+                // Target calculations
+                const targetTotal = 265305; // Based on your 76.33% target
+                const currentProgress = ((nonGoogleIncome / targetTotal) * 100).toFixed(2);
+                const gapToTarget = Math.max(0, targetTotal - nonGoogleIncome);
+
                 return `
                     <div class="data-section">
                         <div class="section-header">
@@ -930,21 +943,21 @@
                                                     <div style="width: 12px; height: 12px; background: #9CA3AF; border-radius: 2px;"></div>
                                                     <span style="font-weight: 600; color: var(--primary-text);">Google Income</span>
                                                 </div>
-                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$215,000 total</div>
-                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">53.6% of total income</div>
+                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$${googleIncome.toLocaleString()} total</div>
+                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">${googlePercentage}% of total income</div>
                                             </div>
                                             <div style="margin-bottom: 24px;">
                                                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                                                     <div style="width: 12px; height: 12px; background: #22C55E; border-radius: 2px;"></div>
                                                     <span style="font-weight: 600; color: var(--primary-text);">Non-Google Income</span>
                                                 </div>
-                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$201,930 from diversified sources</div>
-                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">46.4% of total income</div>
+                                                <div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 4px;">$${nonGoogleIncome.toLocaleString()} projected (${monthlyRecurringRevenue.toLocaleString()}/month MRR)</div>
+                                                <div style="color: var(--primary-text); font-weight: 600; font-size: 1.1em;">${nonGooglePercentage}% of total income</div>
                                             </div>
                                             <div style="padding: 16px; background: rgba(34, 197, 94, 0.1); border-radius: 8px; border: 1px solid rgba(34, 197, 94, 0.2);">
                                                 <div style="font-size: 0.9em; color: var(--secondary-text); margin-bottom: 4px;">Progress to Target</div>
-                                                <div style="font-weight: 600; color: #059669;">76.33% achieved</div>
-                                                <div style="font-size: 0.85em; color: var(--secondary-text); margin-top: 4px;">$9,375 needed to reach target</div>
+                                                <div style="font-weight: 600; color: #059669;">${currentProgress}% achieved</div>
+                                                <div style="font-size: 0.85em; color: var(--secondary-text); margin-top: 4px;">$${gapToTarget.toLocaleString()} needed to reach target</div>
                                             </div>
                                         </div>
                                     </div>
@@ -4640,7 +4653,7 @@
                     this.renderOverviewMonthlyRevenueChart(clients);
 
                     // Render Google vs Non-Google income chart
-                    this.renderGoogleVsNonGoogleChart();
+                    this.renderGoogleVsNonGoogleChart(clients);
 
                     // Force purple colors after chart rendering
                     setTimeout(() => this.forceChartColors(), 100);
@@ -4832,13 +4845,17 @@
                 });
             }
 
-            renderGoogleVsNonGoogleChart() {
+            renderGoogleVsNonGoogleChart(clients) {
                 const ctx = document.getElementById('googleVsNonGoogleChart');
                 if (!ctx) return;
 
-                // Income data from the provided image
+                // Static Google income
                 const googleIncome = 215000;
-                const nonGoogleIncome = 201930;
+
+                // Dynamic non-Google income: MRR × 12 from active clients
+                const activeClients = clients.filter(c => c.status === 'active');
+                const monthlyRecurringRevenue = activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+                const nonGoogleIncome = monthlyRecurringRevenue * 12;
                 const totalIncome = googleIncome + nonGoogleIncome;
 
                 // Calculate percentages
