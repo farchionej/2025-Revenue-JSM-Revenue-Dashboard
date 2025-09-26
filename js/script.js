@@ -2873,6 +2873,7 @@
                 return {
                     addClient: () => this.showAddClientModal(),
                     editClient: (id) => this.toast('Edit client functionality coming soon', 'info'),
+                    deleteClient: (id) => this.deleteClient(id),
                     editClientAmount: (clientId, currentAmount) => this.editClientAmount(clientId, currentAmount),
                     startInlineAmountEdit: (element) => this.startInlineAmountEdit(element),
                     toggleClientStatus: (id, currentStatus) => this.toggleClientStatus(id, currentStatus),
@@ -3024,6 +3025,56 @@
                 } catch (error) {
                     this.toast('Failed to update client status', 'error');
                     console.error('Error changing client status:', error);
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async deleteClient(clientId) {
+                console.log('🗑️ Deleting client:', clientId);
+
+                // Get client info for confirmation
+                const clients = await this.loadClients();
+                const client = clients.find(c => c.id === clientId);
+
+                if (!client) {
+                    this.toast('Client not found', 'error');
+                    return;
+                }
+
+                const confirmMsg = `Delete ${client.name}? This will permanently remove the client and all associated payment records. This action cannot be undone.`;
+
+                if (!confirm(confirmMsg)) return;
+
+                this.showLoading();
+                try {
+                    // First delete associated payments
+                    const { error: paymentsError } = await this.supabase
+                        .from('monthly_payments')
+                        .delete()
+                        .eq('client_id', clientId);
+
+                    if (paymentsError) throw paymentsError;
+
+                    // Then delete the client
+                    const { error: clientError } = await this.supabase
+                        .from('clients')
+                        .delete()
+                        .eq('id', clientId);
+
+                    if (clientError) throw clientError;
+
+                    // Clear cache and refresh data
+                    this.clearCache();
+                    await this.loadClients();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast(`${client.name} deleted successfully`, 'success');
+                } catch (error) {
+                    this.toast('Failed to delete client', 'error');
+                    console.error('Error deleting client:', error);
                 } finally {
                     this.hideLoading();
                 }
