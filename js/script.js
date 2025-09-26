@@ -986,13 +986,23 @@
                                                     <button onclick="Dashboard.actions.refreshAll()" style="padding: 4px 8px; background: #22C55E; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;">Refresh Data</button>
                                                 </div>
                                                 <div style="max-height: 300px; overflow-y: auto;">
-                                                    ${activeClients.sort((a, b) => a.name.localeCompare(b.name)).map(client => `
-                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                                                            <span style="color: var(--primary-text); flex: 1;">${client.name}</span>
+                                                    ${activeClients.sort((a, b) => a.name.localeCompare(b.name)).map(client => {
+                                                        // Check for potential duplicates (normalize names)
+                                                        const normalizedName = client.name.toLowerCase().replace(/^the\s+/, '').replace(/\s+/g, '');
+                                                        const isDuplicate = activeClients.some(other =>
+                                                            other !== client &&
+                                                            other.name.toLowerCase().replace(/^the\s+/, '').replace(/\s+/g, '') === normalizedName
+                                                        );
+
+                                                        return `
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); ${isDuplicate ? 'background: rgba(239, 68, 68, 0.1); border-left: 3px solid #EF4444; padding-left: 8px;' : ''}">
+                                                            <span style="color: var(--primary-text); flex: 1;">${client.name} ${isDuplicate ? '⚠️ DUPLICATE' : ''}</span>
                                                             <span style="color: var(--secondary-text); font-size: 0.8em; margin: 0 12px;">Status: ${client.status}</span>
                                                             <span style="color: var(--primary-text); font-weight: 600; min-width: 80px; text-align: right;">$${(parseFloat(client.amount) || 0).toLocaleString()}</span>
+                                                            ${isDuplicate ? `<button onclick="Dashboard.actions.deleteClient('${client.id}')" style="margin-left: 8px; padding: 2px 6px; background: #EF4444; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.7em;">Delete</button>` : ''}
                                                         </div>
-                                                    `).join('')}
+                                                        `;
+                                                    }).join('')}
                                                     <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 8px; border-top: 2px solid rgba(255, 255, 255, 0.2); font-weight: 600;">
                                                         <span style="color: var(--primary-text);">Total MRR (Should be $17,610):</span>
                                                         <span style="color: ${monthlyRecurringRevenue === 17610 ? '#22C55E' : '#EF4444'};">$${monthlyRecurringRevenue.toLocaleString()}</span>
