@@ -2088,6 +2088,11 @@
                     throw new Error('Chart.js library not loaded');
                 }
 
+                // Theme-aware styling
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                const textColor = isDarkMode ? '#f8fafc' : '#1f2937';
+                const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+
                 this.charts.revenuePerformance = new Chart(ctx.getContext('2d'), {
                     type: 'bar',
                     data: {
@@ -2095,9 +2100,11 @@
                         datasets: [{
                             label: 'Expected Revenue',
                             data: data.map(d => d.expected),
-                            backgroundColor: 'var(--chart-purple-deep)',
-                            borderColor: 'var(--chart-accent-1)',
-                            borderWidth: 1
+                            backgroundColor: '#5b21b6', // Explicit purple instead of CSS variable
+                            borderColor: '#4c1d95', // Explicit purple border
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            borderSkipped: false
                         }]
                     },
                     options: {
@@ -2109,6 +2116,11 @@
                                 display: false
                             },
                             tooltip: {
+                                backgroundColor: isDarkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                                titleColor: textColor,
+                                bodyColor: textColor,
+                                borderColor: '#5b21b6',
+                                borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {
                                         return 'Expected Revenue: $' + context.parsed.y.toLocaleString();
@@ -2117,12 +2129,24 @@
                             }
                         },
                         scales: {
+                            x: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: gridColor
+                                }
+                            },
                             y: {
                                 beginAtZero: true,
                                 ticks: {
+                                    color: textColor,
                                     callback: function(value) {
                                         return '$' + value.toLocaleString();
                                     }
+                                },
+                                grid: {
+                                    color: gridColor
                                 }
                             }
                         }
