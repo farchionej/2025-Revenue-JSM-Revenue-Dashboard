@@ -113,26 +113,89 @@
             }
 
             forceChartColors() {
-                // Force all bar charts to use purple colors explicitly
-                const purpleColor = 'rgba(139, 92, 246, 0.8)';
-                const purpleBorder = 'rgba(139, 92, 246, 1)';
+                // Force all charts to use purple colors explicitly
                 const isDarkMode = document.body.classList.contains('dark-mode');
                 const textColor = isDarkMode ? '#f8fafc' : '#1f2937';
+                const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+
+                // Define purple color palette
+                const purpleColors = {
+                    main: '#5b21b6',           // var(--chart-purple-main)
+                    medium: '#6b46c1',         // var(--chart-purple-medium)
+                    light: '#7c3aed',          // var(--chart-purple-light)
+                    lighter: '#8b5cf6',        // var(--chart-purple-lighter)
+                    mainWithAlpha: 'rgba(91, 33, 182, 0.8)',
+                    mediumWithAlpha: 'rgba(107, 70, 193, 0.8)'
+                };
 
                 Object.keys(this.charts).forEach(chartId => {
                     const chart = this.charts[chartId];
-                    if (chart && chart.config && chart.config.type === 'bar') {
+                    if (!chart || !chart.config) return;
+
+                    const chartType = chart.config.type;
+                    let updated = false;
+
+                    // Handle BAR charts
+                    if (chartType === 'bar') {
                         if (chart.data && chart.data.datasets) {
                             chart.data.datasets.forEach(dataset => {
-                                dataset.backgroundColor = purpleColor;
-                                dataset.borderColor = purpleBorder;
+                                dataset.backgroundColor = purpleColors.mainWithAlpha;
+                                dataset.borderColor = purpleColors.main;
                             });
+                            updated = true;
                         }
-                        chart.update();
                     }
 
-                    // Client distribution legend will be handled by refreshClientDistributionLegend()
+                    // Handle LINE charts (like Operational Efficiency)
+                    if (chartType === 'line') {
+                        if (chart.data && chart.data.datasets) {
+                            chart.data.datasets.forEach((dataset, index) => {
+                                // Use different purple shades for multiple lines
+                                if (index === 0) {
+                                    dataset.borderColor = purpleColors.main;
+                                    dataset.backgroundColor = purpleColors.mainWithAlpha;
+                                } else if (index === 1) {
+                                    dataset.borderColor = purpleColors.medium;
+                                    dataset.backgroundColor = purpleColors.mediumWithAlpha;
+                                } else {
+                                    // Additional lines use lighter shades
+                                    dataset.borderColor = purpleColors.light;
+                                    dataset.backgroundColor = 'rgba(124, 58, 237, 0.8)';
+                                }
+                            });
+                            updated = true;
+                        }
+                    }
+
+                    // Update chart options for theme-aware styling
+                    if (chart.options) {
+                        // Update legend colors
+                        if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+                            chart.options.plugins.legend.labels.color = textColor;
+                            updated = true;
+                        }
+
+                        // Update scale colors
+                        if (chart.options.scales) {
+                            Object.keys(chart.options.scales).forEach(scaleKey => {
+                                const scale = chart.options.scales[scaleKey];
+                                if (scale.ticks) {
+                                    scale.ticks.color = textColor;
+                                }
+                                if (scale.grid) {
+                                    scale.grid.color = gridColor;
+                                }
+                                updated = true;
+                            });
+                        }
+                    }
+
+                    if (updated) {
+                        chart.update('none'); // Update without animation for performance
+                    }
                 });
+
+                console.log('✅ Applied purple theme colors to all charts in', isDarkMode ? 'dark' : 'light', 'mode');
             }
 
             updateChartsForTheme(theme) {
@@ -1683,7 +1746,7 @@
                         { name: 'Cash Flow', method: () => this.renderCashFlowChart() },
                         { name: 'Growth Trends', method: () => this.renderGrowthTrendsChart() },
                         { name: 'Payment Success Rate', method: () => this.renderPaymentSuccessRateChart() },
-                        { name: 'Operational Efficiency', method: () => this.renderOperationalEfficiencyChart() },
+                        { name: 'Operational Efficiency', method: () => { this.renderOperationalEfficiencyChart(); this.forceChartColors(); } },
                         { name: 'Client Status', method: () => this.renderClientStatusChart() },
                         { name: 'Margin Trend', method: () => this.renderMarginTrendChart() },
                         { name: 'Seasonal Patterns', method: () => { this.renderSeasonalPatternsChart(); this.forceChartColors(); } }
@@ -2637,6 +2700,11 @@
                     }
                 });
 
+                // Theme-aware styling
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                const textColor = isDarkMode ? '#f8fafc' : '#1f2937';
+                const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+
                 if (this.charts.operationalEfficiency) this.charts.operationalEfficiency.destroy();
 
                 this.charts.operationalEfficiency = new Chart(ctx.getContext('2d'), {
@@ -2646,15 +2714,25 @@
                         datasets: [{
                             label: 'Collected Revenue (matches Cash Flow)',
                             data: revenueData,
-                            borderColor: 'var(--chart-purple-main)',
+                            borderColor: '#5b21b6', // var(--chart-purple-main)
                             backgroundColor: 'rgba(91, 33, 182, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#5b21b6',
+                            pointBorderColor: '#5b21b6',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
                             tension: 0.4,
                             yAxisID: 'y'
                         }, {
                             label: 'Costs per Month',
                             data: costData,
-                            borderColor: 'var(--chart-purple-medium)',
+                            borderColor: '#6b46c1', // var(--chart-purple-medium)
                             backgroundColor: 'rgba(107, 70, 193, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#6b46c1',
+                            pointBorderColor: '#6b46c1',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
                             tension: 0.4,
                             yAxisID: 'y'
                         }]
@@ -2663,8 +2741,20 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'top' },
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: textColor,
+                                    usePointStyle: true,
+                                    padding: 20
+                                }
+                            },
                             tooltip: {
+                                backgroundColor: isDarkMode ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                                titleColor: textColor,
+                                bodyColor: textColor,
+                                borderColor: '#5b21b6',
+                                borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {
                                         return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
@@ -2673,15 +2763,27 @@
                             }
                         },
                         scales: {
+                            x: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: gridColor
+                                }
+                            },
                             y: {
                                 type: 'linear',
                                 display: true,
                                 position: 'left',
                                 beginAtZero: true,
                                 ticks: {
+                                    color: textColor,
                                     callback: function(value) {
                                         return '$' + value.toLocaleString();
                                     }
+                                },
+                                grid: {
+                                    color: gridColor
                                 }
                             }
                         }
