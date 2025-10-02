@@ -731,6 +731,73 @@
                 }
             }
 
+            async populateFutureMonths() {
+                // Simple function to pre-populate payment records for future months
+                // This ensures the dashboard always has data available for current and upcoming months
+
+                try {
+                    const currentDate = new Date();
+                    const startYear = currentDate.getFullYear();
+                    const startMonth = currentDate.getMonth(); // 0-based (October = 9)
+
+                    console.log('🗓️ Pre-populating payment records for future months...');
+
+                    // Create payment records for current month + next 12 months (13 total)
+                    const monthsToCreate = [];
+
+                    for (let i = 0; i < 13; i++) {
+                        const targetDate = new Date(startYear, startMonth + i, 1);
+                        const monthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+                        monthsToCreate.push(monthStr);
+                    }
+
+                    console.log('Months to populate:', monthsToCreate);
+
+                    let successCount = 0;
+                    let skippedCount = 0;
+
+                    for (const month of monthsToCreate) {
+                        try {
+                            // Check if payments already exist for this month
+                            const { data: existingPayments, error: checkError } = await this.supabase
+                                .from('monthly_payments')
+                                .select('id')
+                                .eq('month', month)
+                                .limit(1);
+
+                            if (checkError) throw checkError;
+
+                            if (existingPayments && existingPayments.length > 0) {
+                                console.log(`⏭️ ${month}: Already exists, skipping`);
+                                skippedCount++;
+                                continue;
+                            }
+
+                            // Create payments for this month using existing function
+                            await this.createPaymentsForMonth(month);
+                            console.log(`✅ ${month}: Payment records created`);
+                            successCount++;
+
+                        } catch (error) {
+                            console.error(`❌ ${month}: Failed to create payments:`, error);
+                        }
+                    }
+
+                    console.log(`🎉 Future months population complete!`);
+                    console.log(`✅ Created: ${successCount} months`);
+                    console.log(`⏭️ Skipped: ${skippedCount} months (already existed)`);
+
+                    this.toast(`Future months ready! Created ${successCount} months, skipped ${skippedCount} existing`, 'success');
+
+                    return { success: successCount, skipped: skippedCount };
+
+                } catch (error) {
+                    console.error('Error populating future months:', error);
+                    this.toast('Failed to populate future months: ' + error.message, 'error');
+                    throw error;
+                }
+            }
+
             async loadMonthlyData() {
                 if (this.cache.has('monthlyData')) {
                     return this.cache.get('monthlyData');
@@ -5355,6 +5422,19 @@
                     try {
                         Dashboard = new DashboardCore();
                         console.log('✅ Dashboard created successfully:', Dashboard);
+
+                        // Add global helper function for populating future months
+                        window.populateFutureMonths = () => {
+                            if (Dashboard && Dashboard.populateFutureMonths) {
+                                console.log('🚀 Starting future months population...');
+                                return Dashboard.populateFutureMonths();
+                            } else {
+                                console.error('Dashboard not ready or function not available');
+                            }
+                        };
+
+                        console.log('💡 TIP: Run populateFutureMonths() in console to setup October 2025 and future months');
+
                     } catch (error) {
                         console.error('❌ Error creating Dashboard:', error);
                     }
