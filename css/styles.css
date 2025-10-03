@@ -2138,6 +2138,237 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
+        /* Payment Toggle Buttons */
+        .payment-toggle-group {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .payment-toggle-btn {
+            padding: 6px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: transparent;
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: var(--font-family);
+        }
+
+        .payment-toggle-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .payment-toggle-btn.active.paid {
+            background: #10b981;
+            border-color: #059669;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+
+        .payment-toggle-btn.active.unpaid {
+            background: #fef3c7;
+            border-color: #fbbf24;
+            color: #92400e;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+        }
+
+        .payment-toggle-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Dark mode payment toggles */
+        .dark-mode .payment-toggle-btn {
+            border-color: var(--glass-border);
+            color: var(--secondary-text);
+        }
+
+        .dark-mode .payment-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dark-mode .payment-toggle-btn.active.paid {
+            background: #10b981;
+            border-color: #059669;
+            color: white;
+        }
+
+        .dark-mode .payment-toggle-btn.active.unpaid {
+            background: #fbbf24;
+            border-color: #f59e0b;
+            color: #78350f;
+        }
+
+        /* Client Status Dropdown (Enhanced) */
+        .client-status-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .client-status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .client-status-badge.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .client-status-badge.paused {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .client-status-badge.churned {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .client-status-badge:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .client-status-badge::after {
+            content: '▾';
+            margin-left: 2px;
+            opacity: 0.6;
+            font-size: 0.75rem;
+        }
+
+        .client-status-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            min-width: 140px;
+            margin-top: 6px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px) scale(0.95);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .client-status-wrapper:hover .client-status-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+
+        .client-status-option {
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .client-status-option:last-child {
+            border-bottom: none;
+        }
+
+        .client-status-option:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+
+        .client-status-option:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+
+        .client-status-option.active-option {
+            color: #059669;
+        }
+
+        .client-status-option.paused-option {
+            color: #d97706;
+        }
+
+        .client-status-option.churned-option {
+            color: #dc2626;
+        }
+
+        .client-status-option:hover {
+            background: #f9fafb;
+        }
+
+        .client-status-option.active-option:hover {
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        .client-status-option.paused-option:hover {
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .client-status-option.churned-option:hover {
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .client-status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .client-status-icon.active { background: #10b981; }
+        .client-status-icon.paused { background: #f59e0b; }
+        .client-status-icon.churned { background: #ef4444; }
+
+        /* Dark mode client status */
+        .dark-mode .client-status-badge.active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+
+        .dark-mode .client-status-badge.paused {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+        }
+
+        .dark-mode .client-status-badge.churned {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+        }
+
+        .dark-mode .client-status-dropdown {
+            background: var(--card-background);
+            border-color: var(--glass-border);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .dark-mode .client-status-option {
+            border-color: var(--glass-border);
+            color: var(--primary-text);
+        }
+
+        .dark-mode .client-status-option:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
         /* Utility Classes */
         .hidden { display: none !important; }
         .loading { opacity: 0.6; pointer-events: none; }

@@ -1377,30 +1377,19 @@
                                              client.status === 'paused' ? 'warning' : 'error';
                     const clientStatusText = client.status.charAt(0).toUpperCase() + client.status.slice(1);
 
-                    // Payment status badge with hover dropdown (only show for active clients)
+                    // Payment status toggle buttons (only show for active clients)
                     let paymentStatusHtml = '<span class="status-badge neutral">N/A</span>';
                     if (client.status === 'active' && payment) {
-                        const paymentStatusClass = payment.status === 'paid' ? 'success' : 'warning';
-                        const paymentStatusText = payment.status === 'paid' ? 'Paid' : 'Unpaid';
+                        const isPaid = payment.status === 'paid';
+                        const isUnpaid = payment.status === 'unpaid';
                         paymentStatusHtml = `
-                            <div class="status-badge-wrapper">
-                                <span class="status-badge ${paymentStatusClass}" style="cursor: pointer;">
-                                    ${paymentStatusText} ▾
-                                </span>
-                                <div class="status-dropdown">
-                                    <div class="status-dropdown-item success" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paid'); event.stopPropagation();">
-                                        <span class="status-icon success"></span>
-                                        Paid
-                                    </div>
-                                    <div class="status-dropdown-item warning" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'unpaid'); event.stopPropagation();">
-                                        <span class="status-icon warning"></span>
-                                        Unpaid
-                                    </div>
-                                    <div class="status-dropdown-item neutral" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paused'); event.stopPropagation();">
-                                        <span class="status-icon neutral"></span>
-                                        Paused
-                                    </div>
-                                </div>
+                            <div class="payment-toggle-group">
+                                <button class="payment-toggle-btn ${isPaid ? 'active paid' : ''}" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paid'); event.stopPropagation();">
+                                    Paid
+                                </button>
+                                <button class="payment-toggle-btn ${isUnpaid ? 'active unpaid' : ''}" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'unpaid'); event.stopPropagation();">
+                                    Unpaid
+                                </button>
                             </div>
                         `;
                     }
@@ -1433,7 +1422,23 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="status-badge ${clientStatusClass} clickable" onclick="Dashboard.actions.toggleClientStatus('${client.id}', '${client.status}')" style="cursor: pointer;" title="Click to change status">${clientStatusText}</span>
+                                <div class="client-status-wrapper">
+                                    <span class="client-status-badge ${clientStatusClass}">${clientStatusText}</span>
+                                    <div class="client-status-dropdown">
+                                        <div class="client-status-dropdown-item" onclick="Dashboard.actions.toggleClientStatus('${client.id}', 'active'); event.stopPropagation();">
+                                            <span class="status-icon success"></span>
+                                            Active
+                                        </div>
+                                        <div class="client-status-dropdown-item" onclick="Dashboard.actions.toggleClientStatus('${client.id}', 'paused'); event.stopPropagation();">
+                                            <span class="status-icon warning"></span>
+                                            Paused
+                                        </div>
+                                        <div class="client-status-dropdown-item" onclick="Dashboard.actions.toggleClientStatus('${client.id}', 'churned'); event.stopPropagation();">
+                                            <span class="status-icon error"></span>
+                                            Churned
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                             <td>${paymentStatusHtml}</td>
                             <td>
@@ -3365,18 +3370,9 @@
                 }
             }
 
-            async toggleClientStatus(clientId, currentStatus) {
-                let newStatus;
-                if (currentStatus === 'active') {
-                    newStatus = 'paused';
-                } else if (currentStatus === 'paused') {
-                    newStatus = 'hidden';
-                } else {
-                    newStatus = 'active';
-                }
-
-                const confirmMsg = newStatus === 'hidden'
-                    ? 'This will hide the client from future payment tracking. Continue?'
+            async toggleClientStatus(clientId, newStatus) {
+                const confirmMsg = newStatus === 'churned'
+                    ? 'This will mark the client as churned. Continue?'
                     : `Change status to ${newStatus}?`;
 
                 if (!confirm(confirmMsg)) return;
