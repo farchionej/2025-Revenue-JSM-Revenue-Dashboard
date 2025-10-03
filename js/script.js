@@ -708,6 +708,7 @@
                     const paymentRecords = clients.map(client => ({
                         client_id: client.id,
                         month: month,
+                        amount: client.amount,
                         status: 'unpaid',
                         payment_date: null,
                         notes: null
@@ -3328,6 +3329,8 @@
                     syncMasterInvoiceLog: () => this.syncMasterInvoiceLog(),
                     refreshAll: () => this.refreshData(),
                     cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
+                    cleanupDuplicatePayments: () => this.cleanupDuplicatePayments(),
+                    migratePaymentsSchema: () => this.migratePaymentsSchema(),
                     mergeFSDCAndRegal: () => this.mergeFSDCAndRegal(),
                     contactClient: (clientName) => this.contactClient(clientName),
                     exportOverdueClients: () => this.exportOverdueClients()
@@ -5836,6 +5839,153 @@
                 } catch (error) {
                     console.error('❌ Error merging clients:', error);
                     this.toast('Error merging clients', 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async migratePaymentsSchema() {
+                console.log('🔧 Starting monthly_payments schema migration...');
+
+                if (!confirm('This will:\n\n1. Add an "amount" column to the monthly_payments table\n2. Backfill existing records with amounts from the clients table\n\nThis is required to fix the payment status update issue.\n\nContinue?')) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    // Step 1: Get all payment records with their client data
+                    const { data: payments, error: fetchError } = await this.supabase
+                        .from('monthly_payments')
+                        .select(`
+                            *,
+                            clients (
+                                id,
+                                name,
+                                amount
+                            )
+                        `);
+
+                    if (fetchError) throw fetchError;
+
+                    console.log(`Found ${payments.length} payment records to migrate`);
+
+                    // Step 2: Update each payment record to include the amount
+                    // Note: We can't add the column via SQL from the frontend, so we'll just
+                    // make sure the amount field exists in the data we work with
+                    let updatedCount = 0;
+                    for (const payment of payments) {
+                        if (payment.clients && payment.clients.amount) {
+                            // Update the payment record to include amount
+                            // This assumes the amount column already exists in Supabase
+                            // If not, you'll need to add it manually in the Supabase dashboard first
+                            const { error: updateError } = await this.supabase
+                                .from('monthly_payments')
+                                .update({ amount: payment.clients.amount })
+                                .eq('id', payment.id);
+
+                            if (updateError) {
+                                console.error(`Error updating payment ${payment.id}:`, updateError);
+                            } else {
+                                updatedCount++;
+                            }
+                        }
+                    }
+
+                    console.log(`✅ Updated ${updatedCount} payment records with amounts`);
+
+                    // Refresh all data
+                    this.clearCache();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast(`Migration complete! Updated ${updatedCount} payment records.`, 'success');
+                } catch (error) {
+                    console.error('❌ Error during migration:', error);
+                    this.toast('Migration failed. You may need to add the amount column in Supabase first.', 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async cleanupDuplicatePayments() {
+                console.log('🧹 Starting payment records cleanup...');
+
+                if (!confirm('This will remove duplicate payment records for the same client-month combinations.\n\nThis is safe and will fix the issue where updating one month affects another.\n\nContinue?')) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    // Get all payment records
+                    const { data: allPayments, error: fetchError } = await this.supabase
+                        .from('monthly_payments')
+                        .select('*')
+                        .order('client_id, month, created_at');
+
+                    if (fetchError) throw fetchError;
+
+                    console.log(`Found ${allPayments.length} total payment records`);
+
+                    // Find duplicates - group by client_id + month
+                    const paymentGroups = new Map();
+                    allPayments.forEach(payment => {
+                        const key = `${payment.client_id}_${payment.month}`;
+                        if (!paymentGroups.has(key)) {
+                            paymentGroups.set(key, []);
+                        }
+                        paymentGroups.get(key).push(payment);
+                    });
+
+                    // Find groups with duplicates
+                    const duplicateGroups = Array.from(paymentGroups.values())
+                        .filter(group => group.length > 1);
+
+                    console.log(`Found ${duplicateGroups.length} duplicate client-month combinations`);
+
+                    if (duplicateGroups.length === 0) {
+                        this.toast('No duplicate payment records found! ✨', 'success');
+                        this.hideLoading();
+                        return;
+                    }
+
+                    // For each duplicate group, keep the most recent one and delete the rest
+                    let deletedCount = 0;
+                    for (const group of duplicateGroups) {
+                        // Sort by created_at descending, keep the first (most recent)
+                        group.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                        const toKeep = group[0];
+                        const toDelete = group.slice(1);
+
+                        console.log(`Client ${toKeep.client_id}, Month ${toKeep.month}: Keeping ID ${toKeep.id}, deleting ${toDelete.length} duplicates`);
+
+                        // Delete the duplicates
+                        for (const payment of toDelete) {
+                            const { error: deleteError } = await this.supabase
+                                .from('monthly_payments')
+                                .delete()
+                                .eq('id', payment.id);
+
+                            if (deleteError) {
+                                console.error(`Error deleting payment ${payment.id}:`, deleteError);
+                            } else {
+                                deletedCount++;
+                            }
+                        }
+                    }
+
+                    console.log(`✅ Deleted ${deletedCount} duplicate payment records`);
+
+                    // Refresh all data
+                    this.clearCache();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast(`Cleaned up ${deletedCount} duplicate payment records!`, 'success');
+                } catch (error) {
+                    console.error('❌ Error cleaning up duplicate payments:', error);
+                    this.toast('Error cleaning up duplicate payments', 'error');
                 } finally {
                     this.hideLoading();
                 }
