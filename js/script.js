@@ -318,13 +318,9 @@
                             break;
                         case '2':
                             e.preventDefault();
-                            this.showTab('payments');
+                            this.showTab('clientpayment');
                             break;
                         case '3':
-                            e.preventDefault();
-                            this.showTab('clients');
-                            break;
-                        case '4':
                             e.preventDefault();
                             this.showTab('analytics');
                             break;
@@ -354,7 +350,7 @@
                 } else {
                     help.innerHTML = `
                         <strong>Keyboard Shortcuts:</strong><br>
-                        1-4: Switch tabs<br>
+                        1-3: Switch tabs<br>
                         Ctrl+R: Refresh data<br>
                         Ctrl+N: Add client<br>
                         Esc: Close modal<br>
@@ -844,32 +840,29 @@
                             this.renderOverviewCharts();
                         }, 100);
                         break;
-                    case 'payments':
+                    case 'clientpayment':
                         this.showLoading();
                         try {
-                            contentDiv.innerHTML = await this.renderPayments();
-                            console.log('Payment tracking content loaded successfully');
+                            contentDiv.innerHTML = await this.renderClientPaymentManagement();
+                            console.log('Client & Payment Management content loaded successfully');
+                            // Update lifetime values asynchronously after content loads
+                            setTimeout(async () => {
+                                const clients = await this.loadClients();
+                                await this.updateLifetimeValues(clients);
+                            }, 100);
                         } catch (error) {
-                            console.error('Error loading payment tracking:', error);
+                            console.error('Error loading client & payment management:', error);
                             contentDiv.innerHTML = `
                                 <div class="data-section">
                                     <div class="section-header">
-                                        <div class="section-title">Payment Tracking Error</div>
-                                        <div class="section-subtitle">Failed to load payment data: ${error.message}</div>
+                                        <div class="section-title">Client & Payment Management Error</div>
+                                        <div class="section-subtitle">Failed to load data: ${error.message}</div>
                                     </div>
                                 </div>
                             `;
                         } finally {
                             this.hideLoading();
                         }
-                        break;
-                    case 'clients':
-                        contentDiv.innerHTML = await this.renderClients();
-                        // Update lifetime values asynchronously after content loads
-                        setTimeout(async () => {
-                            const clients = await this.loadClients();
-                            await this.updateLifetimeValues(clients);
-                        }, 100);
                         break;
                     case 'analytics':
                         this.showLoading();
@@ -943,7 +936,7 @@
                         </div>
                     </div>
 
-                    <div class="stat-card clickable" onclick="Dashboard.showTab('clients')">
+                    <div class="stat-card clickable" onclick="Dashboard.showTab('clientpayment')">
                         <div class="stat-label">Total Clients</div>
                         <div class="stat-value">${clients.length}</div>
                         <div class="stat-change">
@@ -1159,11 +1152,8 @@
                                 <div>
                                     <h3 style="margin-bottom: 16px; font-size: 1.2em;">Quick Actions</h3>
                                     <div style="display: flex; flex-direction: column; gap: 12px;">
-                                        <button class="btn primary" onclick="Dashboard.showTab('payments')" style="justify-content: flex-start;">
-                                            Manage Payments
-                                        </button>
-                                        <button class="btn secondary" onclick="Dashboard.showTab('clients')" style="justify-content: flex-start;">
-                                            Manage Clients
+                                        <button class="btn primary" onclick="Dashboard.showTab('clientpayment')" style="justify-content: flex-start;">
+                                            Manage Clients & Payments
                                         </button>
                                         <button class="btn secondary" onclick="Dashboard.showTab('analytics')" style="justify-content: flex-start;">
                                             View Analytics
@@ -1208,8 +1198,8 @@
                                             <button class="btn secondary small" onclick="Dashboard.actions.exportOverdueClients()">
                                                 Export Overdue List
                                             </button>
-                                            <button class="btn success small" onclick="Dashboard.showTab('payments')">
-                                                View Payment Tracking
+                                            <button class="btn success small" onclick="Dashboard.showTab('clientpayment')">
+                                                Manage Payments
                                             </button>
                                         </div>
                                     ` : `
@@ -1223,6 +1213,244 @@
                         </div>
                     </div>
                 `;
+            }
+
+            async renderClientPaymentManagement() {
+                console.log('Loading unified client & payment management data...');
+
+                // Load both clients and payments data
+                const [clients, payments] = await Promise.all([
+                    this.loadClients(),
+                    this.loadPayments()
+                ]);
+
+                console.log('Loaded clients:', clients?.length || 0, 'records');
+                console.log('Loaded payments:', payments?.length || 0, 'records');
+
+                // Handle no data case
+                if (!clients || clients.length === 0) {
+                    return `
+                        <div class="data-section">
+                            <div class="section-header">
+                                <div class="section-title">Client & Payment Management</div>
+                                <div class="section-subtitle">No client data found</div>
+                            </div>
+                            <div style="padding: 60px; text-align: center; color: var(--secondary-text);">
+                                <div style="font-size: 3rem; margin-bottom: 24px;">👥</div>
+                                <h3 style="margin-bottom: 16px; color: var(--primary-text);">No Clients Found</h3>
+                                <p style="margin-bottom: 32px;">Start by adding your first client to begin tracking payments.</p>
+                                <button class="btn primary" onclick="Dashboard.actions.addClient()">
+                                    Add Your First Client
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Create a map of payments by client_id for easy lookup
+                const paymentMap = new Map();
+                payments?.forEach(payment => {
+                    if (payment.client_id) {
+                        paymentMap.set(payment.client_id, payment);
+                    }
+                });
+
+                // Calculate filter counts
+                const activeClients = clients.filter(c => c.status === 'active');
+                const pausedClients = clients.filter(c => c.status === 'paused');
+                const hiddenClients = clients.filter(c => c.status === 'hidden');
+
+                // Payment status counts (only for active clients)
+                const activePayments = activeClients.map(client => paymentMap.get(client.id)).filter(Boolean);
+                const paidCount = activePayments.filter(p => p.status === 'paid').length;
+                const unpaidCount = activePayments.filter(p => p.status === 'unpaid').length;
+
+                // Format the current month for better display
+                const monthDate = new Date(this.currentMonth + '-01');
+                const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+                return `
+                    <div class="data-section">
+                        <div class="section-header">
+                            <div class="section-title">Client & Payment Management - ${monthName}</div>
+                            <div class="section-subtitle">Unified client database and payment tracking</div>
+                        </div>
+
+                        <div class="section-controls">
+                            <div class="control-section">
+                                <!-- Smart Filter Group -->
+                                <div class="filter-group">
+                                    <button class="filter-btn active" onclick="Dashboard.filterClientPayments('all')">
+                                        All Active <span class="filter-count">${activeClients.length}</span>
+                                    </button>
+                                    <button class="filter-btn" onclick="Dashboard.filterClientPayments('paid')">
+                                        Paid <span class="filter-count">${paidCount}</span>
+                                    </button>
+                                    <button class="filter-btn" onclick="Dashboard.filterClientPayments('unpaid')">
+                                        Unpaid <span class="filter-count">${unpaidCount}</span>
+                                    </button>
+                                    <button class="filter-btn" onclick="Dashboard.filterClientPayments('paused')">
+                                        Paused <span class="filter-count">${pausedClients.length}</span>
+                                    </button>
+                                    ${hiddenClients.length > 0 ? `
+                                        <button class="filter-btn" onclick="Dashboard.filterClientPayments('hidden')">
+                                            Hidden <span class="filter-count">${hiddenClients.length}</span>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+
+                            <div style="margin-left: auto; display: flex; gap: 12px;">
+                                ${unpaidCount > 0 ? `
+                                    <button class="btn success" onclick="Dashboard.actions.markAllPaid()">
+                                        Mark All Paid
+                                    </button>
+                                ` : ''}
+                                <button class="btn primary" onclick="Dashboard.actions.addClient()">+ Add Client</button>
+                            </div>
+                        </div>
+
+                        ${unpaidCount > 0 ? `
+                            <div style="padding: 20px 32px; background: rgba(245, 158, 11, 0.08); border-radius: var(--border-radius-small); margin-bottom: 24px; border: 1px solid rgba(245, 158, 11, 0.2);">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 4px; height: 4px; border-radius: 50%; background: var(--warning-gray);"></div>
+                                    <span style="font-weight: 500; color: var(--primary-text);">${unpaidCount} unpaid clients</span>
+                                    <span style="color: var(--secondary-text);">•</span>
+                                    <span style="color: var(--secondary-text);">
+                                        $${activePayments.filter(p => p.status === 'unpaid')
+                                            .reduce((sum, p) => {
+                                                const client = clients.find(c => c.id === p.client_id);
+                                                return sum + (parseFloat(client?.amount) || 0);
+                                            }, 0).toLocaleString()} outstanding
+                                    </span>
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="padding: 20px 32px; background: rgba(16, 185, 129, 0.08); border-radius: var(--border-radius-small); margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 4px; height: 4px; border-radius: 50%; background: var(--success-green);"></div>
+                                    <span style="font-weight: 500; color: var(--primary-text);">All active clients have paid!</span>
+                                </div>
+                            </div>
+                        `}
+
+                        <div class="table-container">
+                            <table id="clientPaymentTable">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="Dashboard.sortClientPayments('name')">Client Name</th>
+                                        <th class="sortable" onclick="Dashboard.sortClientPayments('amount')">Monthly Amount</th>
+                                        <th class="sortable" onclick="Dashboard.sortClientPayments('clientStatus')">Client Status</th>
+                                        <th class="sortable" onclick="Dashboard.sortClientPayments('paymentStatus')">Payment Status</th>
+                                        <th class="sortable" onclick="Dashboard.sortClientPayments('paymentDate')">Payment Date</th>
+                                        <th>Notes</th>
+                                        <th>Lifetime Value</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clientPaymentTableBody">
+                                    ${this.renderUnifiedClientPaymentRows(clients, paymentMap)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderUnifiedClientPaymentRows(clients, paymentMap) {
+                if (!clients || clients.length === 0) return '<tr><td colspan="8" style="text-align: center; padding: 40px;">No clients found</td></tr>';
+
+                return clients.map(client => {
+                    const payment = paymentMap.get(client.id);
+                    const amount = parseFloat(client.amount) || 0;
+
+                    // Client status badge
+                    const clientStatusClass = client.status === 'active' ? 'success' :
+                                             client.status === 'paused' ? 'warning' : 'error';
+                    const clientStatusText = client.status.charAt(0).toUpperCase() + client.status.slice(1);
+
+                    // Payment status badge (only show for active clients)
+                    let paymentStatusHtml = '<span class="status-badge neutral">N/A</span>';
+                    if (client.status === 'active' && payment) {
+                        const paymentStatusClass = payment.status === 'paid' ? 'success' : 'warning';
+                        const paymentStatusText = payment.status === 'paid' ? 'Paid' : 'Unpaid';
+                        paymentStatusHtml = `<span class="status-badge ${paymentStatusClass}">${paymentStatusText}</span>`;
+                    }
+
+                    // Payment date (only show for active clients with payments)
+                    let paymentDateHtml = '-';
+                    if (client.status === 'active' && payment && payment.date) {
+                        const date = new Date(payment.date + 'T00:00:00');
+                        paymentDateHtml = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    }
+
+                    // Notes (only show for active clients with payments)
+                    let notesHtml = '-';
+                    if (client.status === 'active' && payment && payment.notes) {
+                        const truncated = payment.notes.length > 30 ? payment.notes.substring(0, 30) + '...' : payment.notes;
+                        notesHtml = `<span title="${payment.notes}">${truncated}</span>`;
+                    }
+
+                    // Lifetime value placeholder
+                    const lifetimeValueId = `lifetime-value-${client.id}`;
+
+                    return `
+                        <tr data-client-id="${client.id}" data-client-status="${client.status}" data-payment-status="${payment?.status || 'none'}">
+                            <td>
+                                <div style="font-weight: 500;">${client.name}</div>
+                            </td>
+                            <td>
+                                <span class="editable-amount" onclick="Dashboard.actions.editClientAmount('${client.id}', ${amount})">
+                                    $${amount.toLocaleString()}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge ${clientStatusClass}">${clientStatusText}</span>
+                            </td>
+                            <td>${paymentStatusHtml}</td>
+                            <td>
+                                ${client.status === 'active' && payment ? `
+                                    <span class="editable-date" onclick="Dashboard.actions.editPaymentDate('${payment.id}', '${payment.date}')">
+                                        ${paymentDateHtml}
+                                    </span>
+                                ` : paymentDateHtml}
+                            </td>
+                            <td>
+                                ${client.status === 'active' && payment ? `
+                                    <span class="editable-notes" onclick="Dashboard.actions.editPaymentNotes('${payment.id}', '${(payment.notes || '').replace(/'/g, "\\'")}')">
+                                        ${notesHtml}
+                                    </span>
+                                ` : notesHtml}
+                            </td>
+                            <td>
+                                <span id="${lifetimeValueId}" style="color: var(--secondary-text);">Calculating...</span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    ${client.status === 'active' && payment && payment.status === 'unpaid' ? `
+                                        <button class="btn-icon success" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paid')" title="Mark as Paid">
+                                            ✓
+                                        </button>
+                                    ` : ''}
+                                    ${client.status === 'active' && payment && payment.status === 'paid' ? `
+                                        <button class="btn-icon warning" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'unpaid')" title="Mark as Unpaid">
+                                            ↻
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn-icon primary" onclick="Dashboard.actions.editClient('${client.id}')" title="Edit Client">
+                                        ✎
+                                    </button>
+                                    <button class="btn-icon neutral" onclick="Dashboard.actions.toggleClientStatus('${client.id}', '${client.status}')" title="Change Status">
+                                        ⚙
+                                    </button>
+                                    <button class="btn-icon error" onclick="Dashboard.actions.deleteClient('${client.id}')" title="Delete Client">
+                                        ×
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
 
             async renderPayments() {
@@ -1242,8 +1470,8 @@
                                 <div style="font-size: 3rem; margin-bottom: 24px;">📭</div>
                                 <h3 style="margin-bottom: 16px; color: var(--primary-text);">No Payment Data</h3>
                                 <p style="margin-bottom: 32px;">There are no payments recorded for ${this.currentMonth}.</p>
-                                <button class="btn primary" onclick="Dashboard.showTab('clients')" style="margin-right: 16px;">
-                                    Add Clients First
+                                <button class="btn primary" onclick="Dashboard.showTab('clientpayment')" style="margin-right: 16px;">
+                                    Manage Clients
                                 </button>
                                 <button class="btn secondary" onclick="Dashboard.refreshData()">
                                     Refresh Data
@@ -4164,6 +4392,163 @@
                                 aValue = aMonths * (parseFloat(a.amount) || 0);
                                 bValue = bMonths * (parseFloat(b.amount) || 0);
                             }
+                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                        default:
+                            return 0;
+                    }
+                });
+            }
+
+            // =============================================================================
+            // UNIFIED CLIENT & PAYMENT MANAGEMENT FUNCTIONS
+            // =============================================================================
+
+            filterClientPayments(filter) {
+                // Update filter button styles
+                document.querySelectorAll('#tabContent .filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+
+                // Filter and re-render table
+                this.renderFilteredClientPayments(filter);
+                this.toast(`Filtered to show ${filter === 'all' ? 'all active' : filter} clients`, 'info');
+            }
+
+            async renderFilteredClientPayments(filter) {
+                const [clients, payments] = await Promise.all([
+                    this.loadClients(),
+                    this.loadPayments()
+                ]);
+
+                // Create payment map
+                const paymentMap = new Map();
+                payments?.forEach(payment => {
+                    if (payment.client_id) {
+                        paymentMap.set(payment.client_id, payment);
+                    }
+                });
+
+                let filteredClients = [];
+
+                if (filter === 'all') {
+                    // Show only active clients
+                    filteredClients = clients.filter(c => c.status === 'active');
+                } else if (filter === 'paused') {
+                    // Show paused clients
+                    filteredClients = clients.filter(c => c.status === 'paused');
+                } else if (filter === 'hidden') {
+                    // Show hidden clients
+                    filteredClients = clients.filter(c => c.status === 'hidden');
+                } else if (filter === 'paid' || filter === 'unpaid') {
+                    // Show only active clients with specified payment status
+                    filteredClients = clients.filter(c => {
+                        if (c.status !== 'active') return false;
+                        const payment = paymentMap.get(c.id);
+                        return payment && payment.status === filter;
+                    });
+                }
+
+                // Apply current sort if any
+                if (this.clientPaymentsSortColumn) {
+                    filteredClients = this.sortClientPaymentsData(filteredClients, paymentMap, this.clientPaymentsSortColumn, this.clientPaymentsSortDirection);
+                }
+
+                const tableBody = document.getElementById('clientPaymentTableBody');
+                if (tableBody) {
+                    tableBody.innerHTML = this.renderUnifiedClientPaymentRows(filteredClients, paymentMap);
+                    // Update lifetime values for filtered clients
+                    setTimeout(async () => {
+                        await this.updateLifetimeValues(filteredClients);
+                    }, 100);
+                }
+            }
+
+            async sortClientPayments(column) {
+                // Toggle sort direction
+                if (this.clientPaymentsSortColumn === column) {
+                    this.clientPaymentsSortDirection = this.clientPaymentsSortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.clientPaymentsSortColumn = column;
+                    this.clientPaymentsSortDirection = 'desc'; // Default to desc for numeric columns
+                }
+
+                // Update header indicators
+                document.querySelectorAll('#clientPaymentTable th.sortable').forEach(th => {
+                    th.classList.remove('sorted-asc', 'sorted-desc');
+                });
+
+                const currentTh = document.querySelector(`#clientPaymentTable th.sortable[onclick*="${column}"]`);
+                if (currentTh) {
+                    currentTh.classList.add(this.clientPaymentsSortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                }
+
+                // Get current data and sort
+                const [clients, payments] = await Promise.all([
+                    this.loadClients(),
+                    this.loadPayments()
+                ]);
+
+                // Create payment map
+                const paymentMap = new Map();
+                payments?.forEach(payment => {
+                    if (payment.client_id) {
+                        paymentMap.set(payment.client_id, payment);
+                    }
+                });
+
+                const sortedClients = this.sortClientPaymentsData(clients, paymentMap, column, this.clientPaymentsSortDirection);
+
+                // Re-render table
+                const tableBody = document.getElementById('clientPaymentTableBody');
+                if (tableBody) {
+                    tableBody.innerHTML = this.renderUnifiedClientPaymentRows(sortedClients, paymentMap);
+                    // Update lifetime values
+                    setTimeout(async () => {
+                        await this.updateLifetimeValues(sortedClients);
+                    }, 100);
+                }
+
+                this.toast(`Sorted by ${column} (${this.clientPaymentsSortDirection === 'asc' ? 'Low to High' : 'High to Low'})`, 'success');
+            }
+
+            sortClientPaymentsData(clients, paymentMap, column, direction) {
+                return [...clients].sort((a, b) => {
+                    let aValue, bValue;
+
+                    switch (column) {
+                        case 'name':
+                            aValue = a.name || '';
+                            bValue = b.name || '';
+                            return direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+
+                        case 'amount':
+                            aValue = parseFloat(a.amount) || 0;
+                            bValue = parseFloat(b.amount) || 0;
+                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                        case 'clientStatus':
+                            // Custom status priority: active > paused > hidden
+                            const statusPriority = { 'active': 3, 'paused': 2, 'hidden': 1 };
+                            aValue = statusPriority[a.status] || 0;
+                            bValue = statusPriority[b.status] || 0;
+                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                        case 'paymentStatus':
+                            const paymentA = paymentMap.get(a.id);
+                            const paymentB = paymentMap.get(b.id);
+                            // Paid = 2, Unpaid = 1, None = 0
+                            const paymentPriority = { 'paid': 2, 'unpaid': 1 };
+                            aValue = paymentA ? (paymentPriority[paymentA.status] || 0) : 0;
+                            bValue = paymentB ? (paymentPriority[paymentB.status] || 0) : 0;
+                            return direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                        case 'paymentDate':
+                            const dateA = paymentMap.get(a.id);
+                            const dateB = paymentMap.get(b.id);
+                            aValue = dateA?.date ? new Date(dateA.date) : new Date(0);
+                            bValue = dateB?.date ? new Date(dateB.date) : new Date(0);
                             return direction === 'asc' ? aValue - bValue : bValue - aValue;
 
                         default:
