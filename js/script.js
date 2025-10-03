@@ -1345,7 +1345,6 @@
                                         <th class="sortable" onclick="Dashboard.sortClientPayments('paymentDate')">Payment Date</th>
                                         <th>Notes</th>
                                         <th>Lifetime Value</th>
-                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="clientPaymentTableBody">
@@ -1358,23 +1357,24 @@
             }
 
             renderUnifiedClientPaymentRows(clients, paymentMap) {
-                if (!clients || clients.length === 0) return '<tr><td colspan="8" style="text-align: center; padding: 40px;">No clients found</td></tr>';
+                if (!clients || clients.length === 0) return '<tr><td colspan="7" style="text-align: center; padding: 40px;">No clients found</td></tr>';
 
                 return clients.map(client => {
                     const payment = paymentMap.get(client.id);
                     const amount = parseFloat(client.amount) || 0;
 
-                    // Client status badge
+                    // Client status badge - clickable to change status
                     const clientStatusClass = client.status === 'active' ? 'success' :
                                              client.status === 'paused' ? 'warning' : 'error';
                     const clientStatusText = client.status.charAt(0).toUpperCase() + client.status.slice(1);
 
-                    // Payment status badge (only show for active clients)
+                    // Payment status badge - clickable to toggle (only show for active clients)
                     let paymentStatusHtml = '<span class="status-badge neutral">N/A</span>';
                     if (client.status === 'active' && payment) {
                         const paymentStatusClass = payment.status === 'paid' ? 'success' : 'warning';
                         const paymentStatusText = payment.status === 'paid' ? 'Paid' : 'Unpaid';
-                        paymentStatusHtml = `<span class="status-badge ${paymentStatusClass}">${paymentStatusText}</span>`;
+                        const nextStatus = payment.status === 'paid' ? 'unpaid' : 'paid';
+                        paymentStatusHtml = `<span class="status-badge ${paymentStatusClass} clickable" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', '${nextStatus}')" style="cursor: pointer;" title="Click to mark as ${nextStatus}">${paymentStatusText}</span>`;
                     }
 
                     // Payment date (only show for active clients with payments)
@@ -1405,7 +1405,7 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="status-badge ${clientStatusClass}">${clientStatusText}</span>
+                                <span class="status-badge ${clientStatusClass} clickable" onclick="Dashboard.actions.toggleClientStatus('${client.id}', '${client.status}')" style="cursor: pointer;" title="Click to change status">${clientStatusText}</span>
                             </td>
                             <td>${paymentStatusHtml}</td>
                             <td>
@@ -1424,29 +1424,6 @@
                             </td>
                             <td>
                                 <span id="${lifetimeValueId}" style="color: var(--secondary-text);">Calculating...</span>
-                            </td>
-                            <td>
-                                <div class="action-buttons">
-                                    ${client.status === 'active' && payment && payment.status === 'unpaid' ? `
-                                        <button class="btn-icon success" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paid')" title="Mark as Paid">
-                                            ✓
-                                        </button>
-                                    ` : ''}
-                                    ${client.status === 'active' && payment && payment.status === 'paid' ? `
-                                        <button class="btn-icon warning" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'unpaid')" title="Mark as Unpaid">
-                                            ↻
-                                        </button>
-                                    ` : ''}
-                                    <button class="btn-icon primary" onclick="Dashboard.actions.editClient('${client.id}')" title="Edit Client">
-                                        ✎
-                                    </button>
-                                    <button class="btn-icon neutral" onclick="Dashboard.actions.toggleClientStatus('${client.id}', '${client.status}')" title="Change Status">
-                                        ⚙
-                                    </button>
-                                    <button class="btn-icon error" onclick="Dashboard.actions.deleteClient('${client.id}')" title="Delete Client">
-                                        ×
-                                    </button>
-                                </div>
                             </td>
                         </tr>
                     `;
