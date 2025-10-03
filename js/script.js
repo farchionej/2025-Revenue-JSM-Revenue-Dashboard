@@ -1350,6 +1350,15 @@
                                 <tbody id="clientPaymentTableBody">
                                     ${this.renderUnifiedClientPaymentRows(clients, paymentMap)}
                                 </tbody>
+                                <tfoot>
+                                    <tr style="background: var(--light-gray); font-weight: 600; border-top: 2px solid var(--border-gray);">
+                                        <td style="padding: 16px;">Total Active Clients (${activeClients.length})</td>
+                                        <td style="padding: 16px; color: var(--success-green); font-size: 1.1em;">
+                                            $${activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString()}
+                                        </td>
+                                        <td colspan="5"></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
