@@ -937,7 +937,7 @@
                     </div>
 
                     <div class="stat-card clickable" onclick="Dashboard.showTab('clientpayment')">
-                        <div class="stat-label">Total Clients</div>
+                        <div class="stat-label">Total Restaurants Under Management</div>
                         <div class="stat-value">${clients.length}</div>
                         <div class="stat-change">
                             ${clients.filter(c => c.status === 'paused').length} paused
