@@ -5498,8 +5498,8 @@
                         datasets: [{
                             label: 'Expected Revenue',
                             data,
-                            backgroundColor: 'var(--chart-purple-main)',
-                            borderColor: 'var(--chart-purple-deep)',
+                            backgroundColor: '#5b21b6',
+                            borderColor: '#4c1d95',
                             borderWidth: 1,
                             borderRadius: 4,
                             borderSkipped: false
@@ -5513,6 +5513,13 @@
                                 display: false
                             },
                             tooltip: {
+                                backgroundColor: 'rgba(91, 33, 182, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                borderColor: '#5b21b6',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
                                 callbacks: {
                                     label: function(context) {
                                         return `Expected: $${context.parsed.y.toLocaleString()}`;
@@ -5526,13 +5533,18 @@
                                 ticks: {
                                     callback: function(value) {
                                         return '$' + value.toLocaleString();
-                                    }
+                                    },
+                                    color: '#6b7280'
                                 },
                                 grid: {
-                                    color: 'rgba(0,0,0,0.1)'
+                                    color: 'rgba(0,0,0,0.05)',
+                                    drawBorder: false
                                 }
                             },
                             x: {
+                                ticks: {
+                                    color: '#6b7280'
+                                },
                                 grid: {
                                     display: false
                                 }
