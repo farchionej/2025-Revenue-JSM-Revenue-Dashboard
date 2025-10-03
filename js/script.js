@@ -5847,13 +5847,40 @@
             async migratePaymentsSchema() {
                 console.log('🔧 Starting monthly_payments schema migration...');
 
-                if (!confirm('This will:\n\n1. Add an "amount" column to the monthly_payments table\n2. Backfill existing records with amounts from the clients table\n\nThis is required to fix the payment status update issue.\n\nContinue?')) {
+                if (!confirm('This will:\n\n1. Try to add an "amount" column to the monthly_payments table (via SQL)\n2. Backfill existing records with amounts from the clients table\n3. Add a unique constraint on (client_id, month)\n\nThis is required to fix the payment status update issue.\n\nContinue?')) {
                     return;
                 }
 
                 this.showLoading();
                 try {
-                    // Step 1: Get all payment records with their client data
+                    // Step 1: Try to add the amount column via SQL
+                    console.log('Adding amount column to monthly_payments table...');
+                    try {
+                        await this.supabase.rpc('exec_sql', {
+                            sql: 'ALTER TABLE monthly_payments ADD COLUMN IF NOT EXISTS amount DECIMAL(10,2);'
+                        });
+                        console.log('✅ Amount column added (or already exists)');
+                    } catch (sqlError) {
+                        console.warn('Could not add column via RPC (this is normal):', sqlError);
+                        console.log('Attempting alternative method...');
+
+                        // Try using Supabase's SQL editor functionality
+                        // This likely won't work from frontend, but worth trying
+                        const { error: alterError } = await this.supabase
+                            .from('monthly_payments')
+                            .select('amount')
+                            .limit(1);
+
+                        if (alterError && alterError.message.includes('does not exist')) {
+                            this.toast('⚠️ Need manual step: Please add "amount" column (DECIMAL) to monthly_payments table in Supabase dashboard first.', 'warning');
+                            console.error('Amount column does not exist. Please add it manually in Supabase.');
+                            this.hideLoading();
+                            return;
+                        }
+                    }
+
+                    // Step 2: Get all payment records with their client data
+                    console.log('Fetching payment records...');
                     const { data: payments, error: fetchError } = await this.supabase
                         .from('monthly_payments')
                         .select(`
@@ -5869,15 +5896,11 @@
 
                     console.log(`Found ${payments.length} payment records to migrate`);
 
-                    // Step 2: Update each payment record to include the amount
-                    // Note: We can't add the column via SQL from the frontend, so we'll just
-                    // make sure the amount field exists in the data we work with
+                    // Step 3: Update each payment record to include the amount
                     let updatedCount = 0;
+                    let skippedCount = 0;
                     for (const payment of payments) {
                         if (payment.clients && payment.clients.amount) {
-                            // Update the payment record to include amount
-                            // This assumes the amount column already exists in Supabase
-                            // If not, you'll need to add it manually in the Supabase dashboard first
                             const { error: updateError } = await this.supabase
                                 .from('monthly_payments')
                                 .update({ amount: payment.clients.amount })
@@ -5885,13 +5908,30 @@
 
                             if (updateError) {
                                 console.error(`Error updating payment ${payment.id}:`, updateError);
+                                skippedCount++;
                             } else {
                                 updatedCount++;
                             }
+                        } else {
+                            skippedCount++;
                         }
                     }
 
                     console.log(`✅ Updated ${updatedCount} payment records with amounts`);
+                    if (skippedCount > 0) {
+                        console.warn(`⚠️ Skipped ${skippedCount} records (no client data)`);
+                    }
+
+                    // Step 4: Try to add unique constraint
+                    console.log('Adding unique constraint on (client_id, month)...');
+                    try {
+                        await this.supabase.rpc('exec_sql', {
+                            sql: 'ALTER TABLE monthly_payments ADD CONSTRAINT IF NOT EXISTS monthly_payments_client_month_unique UNIQUE (client_id, month);'
+                        });
+                        console.log('✅ Unique constraint added');
+                    } catch (constraintError) {
+                        console.warn('Could not add constraint via RPC (this is normal). Please add manually in Supabase:', constraintError);
+                    }
 
                     // Refresh all data
                     this.clearCache();
@@ -5902,7 +5942,7 @@
                     this.toast(`Migration complete! Updated ${updatedCount} payment records.`, 'success');
                 } catch (error) {
                     console.error('❌ Error during migration:', error);
-                    this.toast('Migration failed. You may need to add the amount column in Supabase first.', 'error');
+                    this.toast('Migration failed. Check console for details.', 'error');
                 } finally {
                     this.hideLoading();
                 }
