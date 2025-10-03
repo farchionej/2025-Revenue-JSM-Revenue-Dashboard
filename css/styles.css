@@ -419,24 +419,41 @@
             gap: 8px;
             align-items: center;
             padding: 8px 16px;
-            background: var(--light-gray);
+            background: transparent;
             border-radius: 8px;
-            border: 1px solid var(--border-gray);
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .action-group:hover {
+            background: var(--light-gray);
         }
 
         .action-group.primary {
-            background: var(--primary-text);
-            color: white;
+            background: transparent;
+            color: var(--primary-text);
+        }
+
+        .action-group.primary:hover {
+            background: rgba(31, 41, 55, 0.05);
         }
 
         .action-group.success {
-            background: var(--success-green);
-            color: white;
+            background: transparent;
+            color: var(--success-green);
+        }
+
+        .action-group.success:hover {
+            background: rgba(5, 150, 105, 0.05);
         }
 
         .action-group.purple {
-            background: var(--chart-purple-deep);
-            color: white;
+            background: transparent;
+            color: var(--chart-purple-deep);
+        }
+
+        .action-group.purple:hover {
+            background: rgba(76, 29, 149, 0.05);
         }
 
         .action-group-label {
@@ -1620,8 +1637,24 @@
         }
 
         .dark-mode .action-group {
-            background: var(--glass-background);
-            border-color: var(--glass-border);
+            background: transparent;
+            border: none;
+        }
+
+        .dark-mode .action-group:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dark-mode .action-group.primary:hover {
+            background: rgba(248, 250, 252, 0.05);
+        }
+
+        .dark-mode .action-group.success:hover {
+            background: rgba(16, 185, 129, 0.08);
+        }
+
+        .dark-mode .action-group.purple:hover {
+            background: rgba(139, 92, 246, 0.08);
         }
 
         .dark-mode .action-group-label {
