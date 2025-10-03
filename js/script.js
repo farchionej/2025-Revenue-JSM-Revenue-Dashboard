@@ -1368,13 +1368,32 @@
                                              client.status === 'paused' ? 'warning' : 'error';
                     const clientStatusText = client.status.charAt(0).toUpperCase() + client.status.slice(1);
 
-                    // Payment status badge - clickable to toggle (only show for active clients)
+                    // Payment status badge with hover dropdown (only show for active clients)
                     let paymentStatusHtml = '<span class="status-badge neutral">N/A</span>';
                     if (client.status === 'active' && payment) {
                         const paymentStatusClass = payment.status === 'paid' ? 'success' : 'warning';
                         const paymentStatusText = payment.status === 'paid' ? 'Paid' : 'Unpaid';
-                        const nextStatus = payment.status === 'paid' ? 'unpaid' : 'paid';
-                        paymentStatusHtml = `<span class="status-badge ${paymentStatusClass} clickable" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', '${nextStatus}')" style="cursor: pointer;" title="Click to mark as ${nextStatus}">${paymentStatusText}</span>`;
+                        paymentStatusHtml = `
+                            <div class="status-badge-wrapper">
+                                <span class="status-badge ${paymentStatusClass}" style="cursor: pointer;">
+                                    ${paymentStatusText} ▾
+                                </span>
+                                <div class="status-dropdown">
+                                    <div class="status-dropdown-item success" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paid'); event.stopPropagation();">
+                                        <span class="status-icon success"></span>
+                                        Paid
+                                    </div>
+                                    <div class="status-dropdown-item warning" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'unpaid'); event.stopPropagation();">
+                                        <span class="status-icon warning"></span>
+                                        Unpaid
+                                    </div>
+                                    <div class="status-dropdown-item neutral" onclick="Dashboard.actions.togglePaymentStatus('${payment.id}', 'paused'); event.stopPropagation();">
+                                        <span class="status-icon neutral"></span>
+                                        Paused
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     }
 
                     // Payment date (only show for active clients with payments)
@@ -1400,7 +1419,7 @@
                                 <div style="font-weight: 500;">${client.name}</div>
                             </td>
                             <td>
-                                <span class="editable-amount" onclick="Dashboard.actions.editClientAmount('${client.id}', ${amount})">
+                                <span class="editable-amount" data-client-id="${client.id}" data-current-amount="${amount}" onclick="Dashboard.actions.editClientAmount('${client.id}', ${amount})" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
                                     $${amount.toLocaleString()}
                                 </span>
                             </td>
@@ -3295,23 +3314,19 @@
                     syncMasterInvoiceLog: () => this.syncMasterInvoiceLog(),
                     refreshAll: () => this.refreshData(),
                     cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
+                    mergeFSDCAndRegal: () => this.mergeFSDCAndRegal(),
                     contactClient: (clientName) => this.contactClient(clientName),
                     exportOverdueClients: () => this.exportOverdueClients()
                 };
             }
 
-            async togglePaymentStatus(paymentId, currentStatus) {
-                console.log('🔍 togglePaymentStatus called with:', { paymentId, currentStatus });
+            async togglePaymentStatus(paymentId, newStatus) {
+                console.log('🔍 togglePaymentStatus called with:', { paymentId, newStatus });
 
-                if (currentStatus === 'paused') {
-                    this.toast('Cannot change status of paused clients', 'warning');
-                    return;
-                }
-
-                const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
+                // Set payment_date to today if marking as paid, null otherwise
                 const paymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
 
-                console.log('🔄 Toggling status:', { currentStatus, newStatus, paymentDate });
+                console.log('🔄 Updating status:', { newStatus, paymentDate });
 
                 this.showLoading();
                 try {
@@ -3770,6 +3785,25 @@
                 }
             }
 
+            editClientAmount(clientId, currentAmount) {
+                console.log('💰 editClientAmount called:', { clientId, currentAmount });
+
+                // Find the amount element for this client in the current view
+                const amountElement = document.querySelector(`[data-client-id="${clientId}"] .editable-amount`);
+                if (amountElement) {
+                    // Set the data attributes if not already set
+                    if (!amountElement.dataset.clientId) {
+                        amountElement.dataset.clientId = clientId;
+                    }
+                    if (!amountElement.dataset.currentAmount) {
+                        amountElement.dataset.currentAmount = currentAmount;
+                    }
+                    this.startInlineAmountEdit(amountElement);
+                } else {
+                    console.error('Could not find amount element for client:', clientId);
+                }
+            }
+
             startInlineAmountEdit(element) {
                 console.log('💰 Starting inline amount edit');
 
@@ -3892,15 +3926,28 @@
                         console.warn('Amount history table not found, skipping history record');
                     }
 
-                    // Step 2: Update client's current amount
+                    // Step 2: Update client's base amount
                     const { error: clientError } = await this.supabase
                         .from('clients')
                         .update({ amount: newAmount })
                         .eq('id', clientId);
 
                     if (clientError) throw clientError;
+                    console.log('✅ Client base amount updated successfully');
 
-                    console.log('✅ Client amount updated successfully');
+                    // Step 3: Update ALL FUTURE monthly_payments (current month and forward)
+                    const { error: paymentsError } = await this.supabase
+                        .from('monthly_payments')
+                        .update({ amount: newAmount })
+                        .eq('client_id', clientId)
+                        .gte('month', this.currentMonth); // Only update current and future months
+
+                    if (paymentsError) {
+                        console.error('Error updating future payments:', paymentsError);
+                        throw paymentsError;
+                    }
+
+                    console.log('✅ Future month payments updated successfully');
 
                     // Update the display with clean design
                     element.innerHTML = `$${newAmount.toLocaleString()}`;
@@ -3911,7 +3958,7 @@
                     await this.loadPayments();
                     await this.updateQuickStats();
 
-                    this.toast(`Amount updated to $${newAmount.toLocaleString()} (effective ${this.currentMonth})`, 'success');
+                    this.toast(`Amount updated to $${newAmount.toLocaleString()} for ${this.currentMonth} and all future months`, 'success');
                 } catch (error) {
                     this.toast('Failed to update amount', 'error');
                     console.error('Error updating client amount:', error);
@@ -5697,6 +5744,95 @@
                 } catch (error) {
                     console.error('Error exporting overdue clients:', error);
                     this.toast('Failed to export overdue clients', 'error');
+                }
+            }
+
+            async mergeFSDCAndRegal() {
+                console.log('🔄 Merging FSDC and Regal into "FSDC by Regal"...');
+
+                if (!confirm('This will merge "FSDC" and "Regal" into a single client called "FSDC by Regal".\n\nAll payment history from both clients will be preserved.\n\nContinue?')) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    // Find both clients
+                    const { data: clients, error: findError } = await this.supabase
+                        .from('clients')
+                        .select('*')
+                        .or('name.ilike.FSDC,name.ilike.Regal');
+
+                    if (findError) throw findError;
+
+                    if (!clients || clients.length === 0) {
+                        this.toast('FSDC or Regal clients not found', 'warning');
+                        this.hideLoading();
+                        return;
+                    }
+
+                    const fsdcClient = clients.find(c => c.name.toLowerCase().includes('fsdc'));
+                    const regalClient = clients.find(c => c.name.toLowerCase().includes('regal'));
+
+                    if (!fsdcClient && !regalClient) {
+                        this.toast('Neither FSDC nor Regal found', 'warning');
+                        this.hideLoading();
+                        return;
+                    }
+
+                    // Determine which client to keep (prefer one with earlier start date or more history)
+                    let keepClient, deleteClient;
+                    if (fsdcClient && regalClient) {
+                        keepClient = fsdcClient;
+                        deleteClient = regalClient;
+                    } else {
+                        keepClient = fsdcClient || regalClient;
+                        deleteClient = null;
+                    }
+
+                    // Update the kept client's name to "FSDC by Regal"
+                    const { error: updateError } = await this.supabase
+                        .from('clients')
+                        .update({ name: 'FSDC by Regal' })
+                        .eq('id', keepClient.id);
+
+                    if (updateError) throw updateError;
+                    console.log('✅ Updated client name to "FSDC by Regal"');
+
+                    // If there's a duplicate, merge its payments and delete it
+                    if (deleteClient) {
+                        // Transfer all payments from deleteClient to keepClient
+                        const { error: paymentUpdateError } = await this.supabase
+                            .from('monthly_payments')
+                            .update({ client_id: keepClient.id })
+                            .eq('client_id', deleteClient.id);
+
+                        if (paymentUpdateError) throw paymentUpdateError;
+                        console.log('✅ Merged payment history');
+
+                        // Delete the duplicate client
+                        const { error: deleteError } = await this.supabase
+                            .from('clients')
+                            .delete()
+                            .eq('id', deleteClient.id);
+
+                        if (deleteError) throw deleteError;
+                        console.log('✅ Deleted duplicate client');
+                    }
+
+                    // Refresh all data
+                    this.clearCache();
+                    await this.loadClients();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+                    this.renderTabContent(this.currentTab);
+
+                    this.toast('Successfully merged into "FSDC by Regal"!', 'success');
+                    console.log('✅ Merge completed');
+                } catch (error) {
+                    console.error('❌ Error merging clients:', error);
+                    this.toast('Error merging clients', 'error');
+                } finally {
+                    this.hideLoading();
                 }
             }
 
