@@ -2160,64 +2160,16 @@
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
-                    // Calculate expected revenue ONLY from monthly_payments table (source of truth)
+                    // Calculate expected revenue for this month
                     let expectedRevenue = 0;
-                    let clientCount = 0;
-                    let activePaymentRecords = [];
-
-                    try {
-                        const { data: monthPayments, error } = await this.supabase
-                            .from('monthly_payments')
-                            .select('client_id, amount, clients(status, churn_date, amount)')
-                            .eq('month', month);
-
-                        if (error) throw error;
-
-                        console.log(`📊 ${month}: Found ${monthPayments?.length || 0} payment records`);
-
-                        // If no payment records exist for this month, we can't calculate expected revenue
-                        if (!monthPayments || monthPayments.length === 0) {
-                            console.warn(`⚠️ ${month}: No payment records found - expected revenue will be $0`);
-                            console.log(`   To fix: Create payment records for ${month} by navigating to that month in Client & Payment Management`);
-                            expectedRevenue = 0;
-                            clientCount = 0;
-                        } else {
-                            // Only include payment records for clients that were active in this month
-                            activePaymentRecords = monthPayments.filter(p => {
-                                if (!p.clients) {
-                                    console.warn(`⚠️ Payment record missing client data:`, p);
-                                    return false;
-                                }
-
-                                // Exclude if client is hidden (permanently removed)
-                                if (p.clients.status === 'hidden') return false;
-
-                                // If client has churn_date, check if they churned AFTER this month
-                                if (p.clients.churn_date) {
-                                    return p.clients.churn_date >= month;
-                                }
-
-                                // Otherwise include (active or paused)
-                                return true;
-                            });
-
-                            // Sum up expected revenue from payment records
-                            // Use payment.amount if available, otherwise fallback to clients.amount
-                            expectedRevenue = activePaymentRecords.reduce((sum, p) => {
-                                const amount = parseFloat(p.amount) || parseFloat(p.clients?.amount) || 0;
-                                if (amount === 0) {
-                                    console.warn(`⚠️ ${month}: Client has $0 amount:`, p.clients);
-                                }
-                                return sum + amount;
-                            }, 0);
-
-                            clientCount = activePaymentRecords.length;
-
-                            console.log(`✅ ${month}: ${clientCount} active clients, Expected Revenue: $${expectedRevenue.toLocaleString()}`);
+                    clients.forEach(client => {
+                        if (client.status === 'active') {
+                            const clientStart = new Date(client.start_date || '2024-01-01');
+                            if (clientStart <= monthDate) {
+                                expectedRevenue += parseFloat(client.amount) || 0;
+                            }
                         }
-                    } catch (error) {
-                        console.error(`❌ Error loading payments for ${month}:`, error);
-                    }
+                    });
 
                     // Get actual payments for this month
                     let actualRevenue = 0;
@@ -2279,19 +2231,14 @@
                         console.log(`📊 Post-August month ${month}: Real collection rate ${collectionRate.toFixed(1)}% (Expected: $${expectedRevenue}, Actual: $${actualRevenue})`);
                     }
 
-                    // Calculate operating income (revenue - costs)
-                    const costs = parseFloat(monthRecord.costs) || 0;
-                    const opIncome = expectedRevenue - costs;
-
                     metrics.monthlyPerformance.push({
                         month,
                         expected: expectedRevenue,
                         actual: actualRevenue_adjusted, // Use adjusted actual revenue for consistent display
                         outstanding,
-                        clientCount, // Track number of active clients
-                        costs, // Track costs for this month
-                        opIncome, // Operating income (margins)
-                        collectionRate
+                        collectionRate,
+                        costs: parseFloat(monthRecord.costs) || 0,
+                        opIncome: actualRevenue_adjusted - (parseFloat(monthRecord.costs) || 0)
                     });
 
                     metrics.collectionRates.push({
@@ -3390,7 +3337,6 @@
                     refreshAll: () => this.refreshData(),
                     cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
                     cleanupDuplicatePayments: () => this.cleanupDuplicatePayments(),
-                    backfillAllMonths: () => this.backfillAllMonths(),
                     migratePaymentsSchema: () => this.migratePaymentsSchema(),
                     mergeFSDCAndRegal: () => this.mergeFSDCAndRegal(),
                     contactClient: (clientName) => this.contactClient(clientName),
@@ -6131,85 +6077,6 @@
                 } catch (error) {
                     console.error('❌ Error during migration:', error);
                     this.toast('Migration failed. Check console for details.', 'error');
-                } finally {
-                    this.hideLoading();
-                }
-            }
-
-            async backfillAllMonths() {
-                console.log('📅 Starting backfill of all historical months...');
-
-                const startMonth = '2024-04'; // April 2024
-                const currentDate = new Date();
-                const currentMonth = currentDate.toISOString().slice(0, 7);
-
-                if (!confirm(`This will create payment records for all months from ${startMonth} to ${currentMonth}.\n\nThis will populate historical data for analytics.\n\nContinue?`)) {
-                    return;
-                }
-
-                this.showLoading();
-                try {
-                    // Generate list of all months to backfill
-                    const months = [];
-                    let date = new Date(startMonth + '-01');
-                    const endDate = new Date(currentMonth + '-01');
-
-                    while (date <= endDate) {
-                        months.push(date.toISOString().slice(0, 7));
-                        date.setMonth(date.getMonth() + 1);
-                    }
-
-                    console.log(`Will backfill ${months.length} months:`, months);
-
-                    // Check which months already have payment records
-                    const { data: existingPayments, error: checkError } = await this.supabase
-                        .from('monthly_payments')
-                        .select('month')
-                        .in('month', months);
-
-                    if (checkError) throw checkError;
-
-                    const existingMonths = new Set(existingPayments.map(p => p.month));
-                    const monthsToCreate = months.filter(m => !existingMonths.has(m));
-
-                    console.log(`${existingMonths.size} months already have records`);
-                    console.log(`${monthsToCreate.length} months need to be created:`, monthsToCreate);
-
-                    if (monthsToCreate.length === 0) {
-                        this.toast('All months already have payment records! ✨', 'success');
-                        this.hideLoading();
-                        return;
-                    }
-
-                    // Create payment records for each missing month
-                    let createdCount = 0;
-                    for (const month of monthsToCreate) {
-                        try {
-                            console.log(`Creating payment records for ${month}...`);
-                            await this.createPaymentsForMonth(month);
-                            createdCount++;
-                        } catch (error) {
-                            console.error(`Error creating payments for ${month}:`, error);
-                        }
-                    }
-
-                    console.log(`✅ Created payment records for ${createdCount} months`);
-
-                    // Refresh all data
-                    this.clearCache();
-                    await this.loadPayments();
-                    await this.updateQuickStats();
-
-                    this.toast(`Backfilled ${createdCount} months! Analytics data is now complete.`, 'success');
-
-                    // Suggest refreshing analytics
-                    if (confirm('Backfill complete! Would you like to refresh the Analytics tab to see the updated data?')) {
-                        this.showTab('analytics');
-                    }
-
-                } catch (error) {
-                    console.error('❌ Error during backfill:', error);
-                    this.toast('Backfill failed. Check console for details.', 'error');
                 } finally {
                     this.hideLoading();
                 }
