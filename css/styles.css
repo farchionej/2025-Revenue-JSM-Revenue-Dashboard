@@ -2420,6 +2420,16 @@
             color: #dc2626;
         }
 
+        .modal-icon.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .modal-icon.warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+
         .modal-title {
             font-size: 1.5rem;
             font-weight: 600;

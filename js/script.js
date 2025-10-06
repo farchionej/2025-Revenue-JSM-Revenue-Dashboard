@@ -3381,30 +3381,47 @@
             }
 
             async toggleClientStatus(clientId, newStatus) {
-                // Special handling for churn status with nice modal
-                if (newStatus === 'churned') {
-                    const monthDate = new Date(this.currentMonth + '-01');
-                    const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const monthDate = new Date(this.currentMonth + '-01');
+                const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-                    this.showModal(
-                        'Mark Client as Churned?',
-                        `This client will be hidden from future months starting ${monthName}.`,
-                        () => this.performStatusUpdate(clientId, newStatus),
-                        {
-                            confirmText: 'Mark as Churned',
-                            cancelText: 'Cancel',
-                            icon: '⚠️',
-                            iconClass: 'danger'
-                        }
-                    );
-                    return;
+                // Configure modal based on status
+                let title, message, icon, iconClass, confirmText, confirmClass;
+
+                if (newStatus === 'churned') {
+                    title = 'Mark Client as Churned?';
+                    message = `This client will be hidden from future months starting ${monthName}.`;
+                    icon = '⚠️';
+                    iconClass = 'danger';
+                    confirmText = 'Mark as Churned';
+                    confirmClass = 'danger';
+                } else if (newStatus === 'active') {
+                    title = 'Activate Client?';
+                    message = 'This client will be marked as active and included in revenue calculations.';
+                    icon = '✓';
+                    iconClass = 'success';
+                    confirmText = 'Activate';
+                    confirmClass = 'success';
+                } else if (newStatus === 'paused') {
+                    title = 'Pause Client?';
+                    message = 'This client will be paused and excluded from active revenue tracking.';
+                    icon = '⏸';
+                    iconClass = 'warning';
+                    confirmText = 'Pause';
+                    confirmClass = 'warning';
                 }
 
-                // For other status changes, use simple confirm
-                const confirmMsg = `Change status to ${newStatus}?`;
-                if (!confirm(confirmMsg)) return;
-
-                await this.performStatusUpdate(clientId, newStatus);
+                this.showModal(
+                    title,
+                    message,
+                    () => this.performStatusUpdate(clientId, newStatus),
+                    {
+                        confirmText,
+                        cancelText: 'Cancel',
+                        icon,
+                        iconClass,
+                        confirmClass
+                    }
+                );
             }
 
             async performStatusUpdate(clientId, newStatus) {
@@ -4704,7 +4721,8 @@
                     confirmText = 'Confirm',
                     cancelText = 'Cancel',
                     icon = '⚠️',
-                    iconClass = 'danger'
+                    iconClass = 'danger',
+                    confirmClass = 'danger'
                 } = options;
 
                 // Remove any existing modals
@@ -4722,7 +4740,7 @@
                                 <button class="btn secondary" onclick="Dashboard.closeModal()">
                                     ${cancelText}
                                 </button>
-                                <button class="btn danger" onclick="Dashboard.confirmModal()">
+                                <button class="btn ${confirmClass}" onclick="Dashboard.confirmModal()">
                                     ${confirmText}
                                 </button>
                             </div>
