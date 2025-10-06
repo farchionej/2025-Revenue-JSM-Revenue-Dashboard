@@ -2140,6 +2140,29 @@
                 return metrics;
             }
 
+            // Helper function to get clients that were active in a specific month
+            getActiveClientsForMonth(clients, month) {
+                return clients.filter(client => {
+                    // Client must have started on or before this month
+                    const clientStart = new Date(client.start_date || '2024-01-01');
+                    const monthDate = new Date(month + '-01');
+
+                    if (clientStart > monthDate) {
+                        return false; // Client hadn't started yet
+                    }
+
+                    // If client has churn_date, they must have churned AFTER this month
+                    if (client.churn_date) {
+                        // Client is included if they churned in this month or later
+                        return client.churn_date >= month;
+                    }
+
+                    // If no churn_date, include if currently active or paused
+                    // (exclude hidden status which is permanent)
+                    return client.status !== 'hidden';
+                });
+            }
+
             async processMonthlyPerformance(metrics, clients, monthlyData) {
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
                 const chronologicalData = monthlyData.slice().reverse();
@@ -2160,15 +2183,37 @@
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
-                    // Calculate expected revenue for this month
+                    // Get clients who were active in this specific month (time-aware)
+                    const activeClientsThisMonth = this.getActiveClientsForMonth(clients, month);
+
+                    // Calculate expected revenue for this month using historical amounts from monthly_payments
                     let expectedRevenue = 0;
-                    clients.forEach(client => {
-                        if (client.status === 'active') {
-                            const clientStart = new Date(client.start_date || '2024-01-01');
-                            if (clientStart <= monthDate) {
-                                expectedRevenue += parseFloat(client.amount) || 0;
-                            }
+                    let clientCount = activeClientsThisMonth.length;
+
+                    // Get monthly_payments for this month to use historical amounts
+                    let monthlyPaymentsMap = new Map();
+                    try {
+                        const { data: monthPayments } = await this.supabase
+                            .from('monthly_payments')
+                            .select('client_id, amount')
+                            .eq('month', month);
+
+                        if (monthPayments) {
+                            monthPayments.forEach(p => {
+                                if (p.amount) {
+                                    monthlyPaymentsMap.set(p.client_id, parseFloat(p.amount));
+                                }
+                            });
                         }
+                    } catch (error) {
+                        console.error(`Error loading payment amounts for ${month}:`, error);
+                    }
+
+                    // Sum up expected revenue using historical amounts when available
+                    activeClientsThisMonth.forEach(client => {
+                        // Use amount from monthly_payments if available (historical), otherwise use current amount
+                        const amount = monthlyPaymentsMap.get(client.id) || parseFloat(client.amount) || 0;
+                        expectedRevenue += amount;
                     });
 
                     // Get actual payments for this month
@@ -2231,14 +2276,19 @@
                         console.log(`📊 Post-August month ${month}: Real collection rate ${collectionRate.toFixed(1)}% (Expected: $${expectedRevenue}, Actual: $${actualRevenue})`);
                     }
 
+                    // Calculate operating income (revenue - costs)
+                    const costs = parseFloat(monthRecord.costs) || 0;
+                    const opIncome = expectedRevenue - costs;
+
                     metrics.monthlyPerformance.push({
                         month,
                         expected: expectedRevenue,
                         actual: actualRevenue_adjusted, // Use adjusted actual revenue for consistent display
                         outstanding,
-                        collectionRate,
-                        costs: parseFloat(monthRecord.costs) || 0,
-                        opIncome: actualRevenue_adjusted - (parseFloat(monthRecord.costs) || 0)
+                        clientCount, // Track number of active clients
+                        costs, // Track costs for this month
+                        opIncome, // Operating income (margins)
+                        collectionRate
                     });
 
                     metrics.collectionRates.push({
