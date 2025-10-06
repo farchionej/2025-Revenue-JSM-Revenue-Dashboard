@@ -2168,7 +2168,7 @@
                     try {
                         const { data: monthPayments, error } = await this.supabase
                             .from('monthly_payments')
-                            .select('client_id, amount, clients(status, churn_date)')
+                            .select('client_id, amount, clients(status, churn_date, amount)')
                             .eq('month', month);
 
                         if (error) throw error;
@@ -2191,8 +2191,10 @@
                             });
 
                             // Sum up expected revenue from payment records
+                            // Use payment.amount if available, otherwise fallback to clients.amount
                             expectedRevenue = activePaymentRecords.reduce((sum, p) => {
-                                return sum + (parseFloat(p.amount) || 0);
+                                const amount = parseFloat(p.amount) || parseFloat(p.clients?.amount) || 0;
+                                return sum + amount;
                             }, 0);
 
                             clientCount = activePaymentRecords.length;
