@@ -2173,10 +2173,21 @@
 
                         if (error) throw error;
 
-                        if (monthPayments) {
+                        console.log(`📊 ${month}: Found ${monthPayments?.length || 0} payment records`);
+
+                        // If no payment records exist for this month, we can't calculate expected revenue
+                        if (!monthPayments || monthPayments.length === 0) {
+                            console.warn(`⚠️ ${month}: No payment records found - expected revenue will be $0`);
+                            console.log(`   To fix: Create payment records for ${month} by navigating to that month in Client & Payment Management`);
+                            expectedRevenue = 0;
+                            clientCount = 0;
+                        } else {
                             // Only include payment records for clients that were active in this month
                             activePaymentRecords = monthPayments.filter(p => {
-                                if (!p.clients) return false;
+                                if (!p.clients) {
+                                    console.warn(`⚠️ Payment record missing client data:`, p);
+                                    return false;
+                                }
 
                                 // Exclude if client is hidden (permanently removed)
                                 if (p.clients.status === 'hidden') return false;
@@ -2194,15 +2205,18 @@
                             // Use payment.amount if available, otherwise fallback to clients.amount
                             expectedRevenue = activePaymentRecords.reduce((sum, p) => {
                                 const amount = parseFloat(p.amount) || parseFloat(p.clients?.amount) || 0;
+                                if (amount === 0) {
+                                    console.warn(`⚠️ ${month}: Client has $0 amount:`, p.clients);
+                                }
                                 return sum + amount;
                             }, 0);
 
                             clientCount = activePaymentRecords.length;
 
-                            console.log(`📊 ${month}: ${clientCount} clients, Expected Revenue: $${expectedRevenue.toLocaleString()}`);
+                            console.log(`✅ ${month}: ${clientCount} active clients, Expected Revenue: $${expectedRevenue.toLocaleString()}`);
                         }
                     } catch (error) {
-                        console.error(`Error loading payments for ${month}:`, error);
+                        console.error(`❌ Error loading payments for ${month}:`, error);
                     }
 
                     // Get actual payments for this month
