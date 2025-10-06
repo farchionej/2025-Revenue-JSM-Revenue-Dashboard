@@ -1256,10 +1256,17 @@
                     }
                 });
 
-                // Calculate filter counts
-                const activeClients = clients.filter(c => c.status === 'active');
-                const pausedClients = clients.filter(c => c.status === 'paused');
-                const hiddenClients = clients.filter(c => c.status === 'hidden');
+                // Filter out churned clients for months after they churned
+                const displayClients = clients.filter(c => {
+                    if (c.status !== 'churned') return true; // Show all non-churned
+                    if (!c.churn_date) return true; // Show if no churn date set (legacy data)
+                    return c.churn_date >= this.currentMonth; // Only show if churned in/after current month
+                });
+
+                // Calculate filter counts (using filtered clients)
+                const activeClients = displayClients.filter(c => c.status === 'active');
+                const pausedClients = displayClients.filter(c => c.status === 'paused');
+                const hiddenClients = displayClients.filter(c => c.status === 'hidden');
 
                 // Payment status counts (only for active clients)
                 const activePayments = activeClients.map(client => paymentMap.get(client.id)).filter(Boolean);
@@ -1349,7 +1356,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="clientPaymentTableBody">
-                                    ${this.renderUnifiedClientPaymentRows(clients, paymentMap)}
+                                    ${this.renderUnifiedClientPaymentRows(displayClients, paymentMap)}
                                 </tbody>
                                 <tfoot>
                                     <tr style="background: var(--light-gray); font-weight: 600; border-top: 2px solid var(--border-gray);">
@@ -3382,9 +3389,21 @@
 
                 this.showLoading();
                 try {
+                    const updateData = { status: newStatus };
+
+                    // If marking as churned, set churn_date to current month
+                    if (newStatus === 'churned') {
+                        updateData.churn_date = this.currentMonth;
+                        console.log(`Setting churn_date to ${this.currentMonth}`);
+                    }
+                    // If un-churning (changing from churned to active/paused), clear churn_date
+                    else {
+                        updateData.churn_date = null;
+                    }
+
                     const { error } = await this.supabase
                         .from('clients')
-                        .update({ status: newStatus })
+                        .update(updateData)
                         .eq('id', clientId);
 
                     if (error) throw error;
@@ -4462,20 +4481,27 @@
                     }
                 });
 
+                // Filter out churned clients for months after they churned
+                const displayClients = clients.filter(c => {
+                    if (c.status !== 'churned') return true; // Show all non-churned
+                    if (!c.churn_date) return true; // Show if no churn date set (legacy data)
+                    return c.churn_date >= this.currentMonth; // Only show if churned in/after current month
+                });
+
                 let filteredClients = [];
 
                 if (filter === 'all') {
                     // Show only active clients
-                    filteredClients = clients.filter(c => c.status === 'active');
+                    filteredClients = displayClients.filter(c => c.status === 'active');
                 } else if (filter === 'paused') {
                     // Show paused clients
-                    filteredClients = clients.filter(c => c.status === 'paused');
+                    filteredClients = displayClients.filter(c => c.status === 'paused');
                 } else if (filter === 'hidden') {
                     // Show hidden clients
-                    filteredClients = clients.filter(c => c.status === 'hidden');
+                    filteredClients = displayClients.filter(c => c.status === 'hidden');
                 } else if (filter === 'paid' || filter === 'unpaid') {
                     // Show only active clients with specified payment status
-                    filteredClients = clients.filter(c => {
+                    filteredClients = displayClients.filter(c => {
                         if (c.status !== 'active') return false;
                         const payment = paymentMap.get(c.id);
                         return payment && payment.status === filter;
