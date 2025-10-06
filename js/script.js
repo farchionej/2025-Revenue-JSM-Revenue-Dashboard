@@ -2508,8 +2508,8 @@
                         datasets: [{
                             label: 'Operating Income (Margins)',
                             data: data.map(d => d.opIncome || 0),
-                            backgroundColor: 'var(--chart-purple-main)',
-                            borderColor: 'var(--chart-accent-2)',
+                            backgroundColor: '#5b21b6',
+                            borderColor: '#7c3aed',
                             borderWidth: 1
                         }]
                     },
