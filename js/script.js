@@ -3390,6 +3390,7 @@
                     refreshAll: () => this.refreshData(),
                     cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
                     cleanupDuplicatePayments: () => this.cleanupDuplicatePayments(),
+                    backfillAllMonths: () => this.backfillAllMonths(),
                     migratePaymentsSchema: () => this.migratePaymentsSchema(),
                     mergeFSDCAndRegal: () => this.mergeFSDCAndRegal(),
                     contactClient: (clientName) => this.contactClient(clientName),
@@ -6130,6 +6131,85 @@
                 } catch (error) {
                     console.error('❌ Error during migration:', error);
                     this.toast('Migration failed. Check console for details.', 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async backfillAllMonths() {
+                console.log('📅 Starting backfill of all historical months...');
+
+                const startMonth = '2024-04'; // April 2024
+                const currentDate = new Date();
+                const currentMonth = currentDate.toISOString().slice(0, 7);
+
+                if (!confirm(`This will create payment records for all months from ${startMonth} to ${currentMonth}.\n\nThis will populate historical data for analytics.\n\nContinue?`)) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    // Generate list of all months to backfill
+                    const months = [];
+                    let date = new Date(startMonth + '-01');
+                    const endDate = new Date(currentMonth + '-01');
+
+                    while (date <= endDate) {
+                        months.push(date.toISOString().slice(0, 7));
+                        date.setMonth(date.getMonth() + 1);
+                    }
+
+                    console.log(`Will backfill ${months.length} months:`, months);
+
+                    // Check which months already have payment records
+                    const { data: existingPayments, error: checkError } = await this.supabase
+                        .from('monthly_payments')
+                        .select('month')
+                        .in('month', months);
+
+                    if (checkError) throw checkError;
+
+                    const existingMonths = new Set(existingPayments.map(p => p.month));
+                    const monthsToCreate = months.filter(m => !existingMonths.has(m));
+
+                    console.log(`${existingMonths.size} months already have records`);
+                    console.log(`${monthsToCreate.length} months need to be created:`, monthsToCreate);
+
+                    if (monthsToCreate.length === 0) {
+                        this.toast('All months already have payment records! ✨', 'success');
+                        this.hideLoading();
+                        return;
+                    }
+
+                    // Create payment records for each missing month
+                    let createdCount = 0;
+                    for (const month of monthsToCreate) {
+                        try {
+                            console.log(`Creating payment records for ${month}...`);
+                            await this.createPaymentsForMonth(month);
+                            createdCount++;
+                        } catch (error) {
+                            console.error(`Error creating payments for ${month}:`, error);
+                        }
+                    }
+
+                    console.log(`✅ Created payment records for ${createdCount} months`);
+
+                    // Refresh all data
+                    this.clearCache();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+
+                    this.toast(`Backfilled ${createdCount} months! Analytics data is now complete.`, 'success');
+
+                    // Suggest refreshing analytics
+                    if (confirm('Backfill complete! Would you like to refresh the Analytics tab to see the updated data?')) {
+                        this.showTab('analytics');
+                    }
+
+                } catch (error) {
+                    console.error('❌ Error during backfill:', error);
+                    this.toast('Backfill failed. Check console for details.', 'error');
                 } finally {
                     this.hideLoading();
                 }
