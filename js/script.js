@@ -2140,29 +2140,6 @@
                 return metrics;
             }
 
-            // Helper function to get clients that were active in a specific month
-            getActiveClientsForMonth(clients, month) {
-                return clients.filter(client => {
-                    // Client must have started on or before this month
-                    const clientStart = new Date(client.start_date || '2024-01-01');
-                    const monthDate = new Date(month + '-01');
-
-                    if (clientStart > monthDate) {
-                        return false; // Client hadn't started yet
-                    }
-
-                    // If client has churn_date, they must have churned AFTER this month
-                    if (client.churn_date) {
-                        // Client is included if they churned in this month or later
-                        return client.churn_date >= month;
-                    }
-
-                    // If no churn_date, include if currently active or paused
-                    // (exclude hidden status which is permanent)
-                    return client.status !== 'hidden';
-                });
-            }
-
             async processMonthlyPerformance(metrics, clients, monthlyData) {
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
                 const chronologicalData = monthlyData.slice().reverse();
@@ -2183,38 +2160,48 @@
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
-                    // Get clients who were active in this specific month (time-aware)
-                    const activeClientsThisMonth = this.getActiveClientsForMonth(clients, month);
-
-                    // Calculate expected revenue for this month using historical amounts from monthly_payments
+                    // Calculate expected revenue ONLY from monthly_payments table (source of truth)
                     let expectedRevenue = 0;
-                    let clientCount = activeClientsThisMonth.length;
+                    let clientCount = 0;
+                    let activePaymentRecords = [];
 
-                    // Get monthly_payments for this month to use historical amounts
-                    let monthlyPaymentsMap = new Map();
                     try {
-                        const { data: monthPayments } = await this.supabase
+                        const { data: monthPayments, error } = await this.supabase
                             .from('monthly_payments')
-                            .select('client_id, amount')
+                            .select('client_id, amount, clients(status, churn_date)')
                             .eq('month', month);
 
+                        if (error) throw error;
+
                         if (monthPayments) {
-                            monthPayments.forEach(p => {
-                                if (p.amount) {
-                                    monthlyPaymentsMap.set(p.client_id, parseFloat(p.amount));
+                            // Only include payment records for clients that were active in this month
+                            activePaymentRecords = monthPayments.filter(p => {
+                                if (!p.clients) return false;
+
+                                // Exclude if client is hidden (permanently removed)
+                                if (p.clients.status === 'hidden') return false;
+
+                                // If client has churn_date, check if they churned AFTER this month
+                                if (p.clients.churn_date) {
+                                    return p.clients.churn_date >= month;
                                 }
+
+                                // Otherwise include (active or paused)
+                                return true;
                             });
+
+                            // Sum up expected revenue from payment records
+                            expectedRevenue = activePaymentRecords.reduce((sum, p) => {
+                                return sum + (parseFloat(p.amount) || 0);
+                            }, 0);
+
+                            clientCount = activePaymentRecords.length;
+
+                            console.log(`📊 ${month}: ${clientCount} clients, Expected Revenue: $${expectedRevenue.toLocaleString()}`);
                         }
                     } catch (error) {
-                        console.error(`Error loading payment amounts for ${month}:`, error);
+                        console.error(`Error loading payments for ${month}:`, error);
                     }
-
-                    // Sum up expected revenue using historical amounts when available
-                    activeClientsThisMonth.forEach(client => {
-                        // Use amount from monthly_payments if available (historical), otherwise use current amount
-                        const amount = monthlyPaymentsMap.get(client.id) || parseFloat(client.amount) || 0;
-                        expectedRevenue += amount;
-                    });
 
                     // Get actual payments for this month
                     let actualRevenue = 0;
