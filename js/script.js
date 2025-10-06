@@ -3381,12 +3381,33 @@
             }
 
             async toggleClientStatus(clientId, newStatus) {
-                const confirmMsg = newStatus === 'churned'
-                    ? 'This will mark the client as churned. Continue?'
-                    : `Change status to ${newStatus}?`;
+                // Special handling for churn status with nice modal
+                if (newStatus === 'churned') {
+                    const monthDate = new Date(this.currentMonth + '-01');
+                    const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+                    this.showModal(
+                        'Mark Client as Churned?',
+                        `This client will be hidden from future months starting ${monthName}.`,
+                        () => this.performStatusUpdate(clientId, newStatus),
+                        {
+                            confirmText: 'Mark as Churned',
+                            cancelText: 'Cancel',
+                            icon: '⚠️',
+                            iconClass: 'danger'
+                        }
+                    );
+                    return;
+                }
+
+                // For other status changes, use simple confirm
+                const confirmMsg = `Change status to ${newStatus}?`;
                 if (!confirm(confirmMsg)) return;
 
+                await this.performStatusUpdate(clientId, newStatus);
+            }
+
+            async performStatusUpdate(clientId, newStatus) {
                 this.showLoading();
                 try {
                     const updateData = { status: newStatus };
@@ -4672,6 +4693,75 @@
                         }
                     }, 300);
                 }
+            }
+
+            // =============================================================================
+            // MODAL SYSTEM
+            // =============================================================================
+
+            showModal(title, message, onConfirm, options = {}) {
+                const {
+                    confirmText = 'Confirm',
+                    cancelText = 'Cancel',
+                    icon = '⚠️',
+                    iconClass = 'danger'
+                } = options;
+
+                // Remove any existing modals
+                const existingModal = document.querySelector('.modal-overlay');
+                if (existingModal) existingModal.remove();
+
+                // Create modal
+                const modalHtml = `
+                    <div class="modal-overlay" id="confirmModal">
+                        <div class="modal-content">
+                            <div class="modal-icon ${iconClass}">${icon}</div>
+                            <h3 class="modal-title">${title}</h3>
+                            <p class="modal-message">${message}</p>
+                            <div class="modal-actions">
+                                <button class="btn secondary" onclick="Dashboard.closeModal()">
+                                    ${cancelText}
+                                </button>
+                                <button class="btn danger" onclick="Dashboard.confirmModal()">
+                                    ${confirmText}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                // Store callback
+                this._modalCallback = onConfirm;
+
+                // Show modal with animation
+                setTimeout(() => {
+                    document.getElementById('confirmModal').classList.add('show');
+                }, 10);
+
+                // Close on overlay click
+                document.getElementById('confirmModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'confirmModal') {
+                        this.closeModal();
+                    }
+                });
+            }
+
+            closeModal() {
+                const modal = document.getElementById('confirmModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                    setTimeout(() => modal.remove(), 200);
+                }
+                this._modalCallback = null;
+            }
+
+            confirmModal() {
+                if (this._modalCallback) {
+                    this._modalCallback();
+                }
+                this.closeModal();
             }
 
             // =============================================================================

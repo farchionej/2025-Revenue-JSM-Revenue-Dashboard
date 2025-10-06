@@ -2369,6 +2369,88 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
+        /* Simple Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 480px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 24px;
+        }
+
+        .modal-icon.danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-text);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .modal-message {
+            color: var(--secondary-text);
+            line-height: 1.6;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .modal-actions .btn {
+            min-width: 120px;
+        }
+
+        /* Dark mode modal */
+        .dark-mode .modal-content {
+            background: var(--card-background);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
         /* Utility Classes */
         .hidden { display: none !important; }
         .loading { opacity: 0.6; pointer-events: none; }
