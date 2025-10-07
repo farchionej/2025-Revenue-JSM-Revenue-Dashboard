@@ -313,18 +313,17 @@
             background: linear-gradient(135deg, var(--glass-background) 0%, rgba(249, 250, 251, 0.4) 100%);
             backdrop-filter: blur(20px);
             color: var(--primary-text);
-            padding: 24px 32px;
+            padding: 20px 32px 16px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
+            gap: 12px;
+            text-align: center;
         }
 
         .nav-title {
-            font-size: 1.125rem;
+            font-size: 1.25rem;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 12px;
             color: var(--primary-text);
         }
 
@@ -411,74 +410,35 @@
 
         /* ========================================
            QUICK ACTIONS (Desktop ≥1024px)
-           Mobile adaptation: Line ~2598
+           Mobile adaptation: Line ~2611
            ======================================== */
 
         .quick-actions {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            align-items: center;
-            padding: 20px 32px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            padding: 24px 32px;
             background: white;
             border-top: 1px solid var(--border-gray);
         }
 
-        .action-group {
+        .action-item {
             display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 8px 16px;
-            background: transparent;
-            border-radius: 8px;
-            border: none;
-            transition: all 0.2s ease;
+            flex-direction: column;
+            gap: 10px;
+            align-items: stretch;
         }
 
-        .action-group:hover {
-            background: var(--light-gray);
-        }
-
-        .action-group.primary {
-            background: transparent;
-            color: var(--primary-text);
-        }
-
-        .action-group.primary:hover {
-            background: rgba(31, 41, 55, 0.05);
-        }
-
-        .action-group.success {
-            background: transparent;
-            color: var(--success-green);
-        }
-
-        .action-group.success:hover {
-            background: rgba(5, 150, 105, 0.05);
-        }
-
-        .action-group.purple {
-            background: transparent;
-            color: var(--chart-purple-deep);
-        }
-
-        .action-group.purple:hover {
-            background: rgba(76, 29, 149, 0.05);
-        }
-
-        .action-group-label {
-            font-size: 0.8em;
+        .action-label {
+            font-size: 0.9rem;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            opacity: 0.8;
+            color: var(--primary-text);
+            text-align: center;
         }
 
-        .quick-actions .divider {
-            height: 30px;
-            width: 1px;
-            background: var(--border-gray);
-            margin: 0 8px;
+        .action-item .btn {
+            width: 100%;
+            justify-content: center;
         }
 
         /* Enhanced Buttons */
@@ -1650,29 +1610,8 @@
             border-color: var(--border-gray);
         }
 
-        .dark-mode .action-group {
-            background: transparent;
-            border: none;
-        }
-
-        .dark-mode .action-group:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .dark-mode .action-group.primary:hover {
-            background: rgba(248, 250, 252, 0.05);
-        }
-
-        .dark-mode .action-group.success:hover {
-            background: rgba(16, 185, 129, 0.08);
-        }
-
-        .dark-mode .action-group.purple:hover {
-            background: rgba(139, 92, 246, 0.08);
-        }
-
-        .dark-mode .action-group-label {
-            color: var(--secondary-text);
+        .dark-mode .action-label {
+            color: var(--primary-text);
         }
 
         .dark-mode .month-selector-enhanced select {
@@ -2610,81 +2549,27 @@
 
             /* ========================================
                [QUICK ACTIONS] - Mobile (<768px)
-               Desktop version: Line ~417
+               Desktop version: Line ~416
                ======================================== */
 
             .quick-actions {
-                padding: 12px !important;
-                display: grid !important;
+                padding: 16px !important;
                 grid-template-columns: 1fr 1fr !important;
-                gap: 10px !important;
-                align-items: stretch !important;
-                flex-wrap: unset !important;
+                gap: 12px !important;
             }
 
-            .action-group {
-                width: 100%;
-                padding: 10px;
-                margin: 0;
-                background: rgba(243, 244, 246, 0.5);
-                border-radius: 8px;
-                flex-direction: column;
+            .action-item {
                 gap: 8px;
-                align-items: stretch;
-                border: 1px solid var(--border-gray);
             }
 
-            .action-group.primary {
-                background: rgba(124, 58, 237, 0.08);
-                border-color: rgba(124, 58, 237, 0.2);
-            }
-
-            .action-group.purple {
-                background: rgba(139, 92, 246, 0.08);
-                border-color: rgba(139, 92, 246, 0.2);
-            }
-
-            .action-group-label {
-                font-size: 0.65rem;
-                text-align: center;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                opacity: 0.7;
-                margin-bottom: 4px;
-            }
-
-            .action-group .btn {
-                width: 100%;
-                min-height: 44px;
+            .action-label {
                 font-size: 0.85rem;
-                justify-content: center;
-                text-align: center;
-                padding: 10px 8px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
             }
 
-            /* Hide dividers on mobile */
-            .quick-actions .divider {
-                display: none;
-            }
-
-            /* Dark mode adjustments */
-            .dark-mode .action-group {
-                background: rgba(255, 255, 255, 0.03);
-                border-color: var(--border-gray);
-            }
-
-            .dark-mode .action-group.primary {
-                background: rgba(124, 58, 237, 0.12);
-                border-color: rgba(124, 58, 237, 0.3);
-            }
-
-            .dark-mode .action-group.purple {
-                background: rgba(139, 92, 246, 0.12);
-                border-color: rgba(139, 92, 246, 0.3);
+            .action-item .btn {
+                min-height: 44px;
+                font-size: 0.9rem;
+                padding: 12px 8px;
             }
 
             .action-groups {
