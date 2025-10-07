@@ -5,11 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jay Street Media Revenue Dashboard</title>
 
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- iOS-specific meta tags for home screen app -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="JSM Dashboard">
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="rev-dash-favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="rev-dash-favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="rev-dash-favicon.png">
     <link rel="shortcut icon" href="rev-dash-favicon.png">
+
+    <!-- Theme color for mobile browsers -->
+    <meta name="theme-color" content="#7c3aed">
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -123,6 +134,21 @@
     </div>
 
     <script src="js/script.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
     <!-- Modals will be added by JavaScript -->
@@ -265,7 +291,14 @@
 
                 if (savedUrl && savedKey) {
                     try {
-                        this.supabase = window.supabase.createClient(savedUrl, savedKey);
+                        this.supabase = window.supabase.createClient(savedUrl, savedKey, {
+                            auth: {
+                                persistSession: true,
+                                autoRefreshToken: true,
+                                detectSessionInUrl: false,
+                                storage: window.localStorage
+                            }
+                        });
                         // Test the connection
                         const { data, error } = await this.supabase.from('clients').select('count').limit(1);
                         if (error) throw error;
@@ -340,7 +373,14 @@
                 this.toast('Testing connection...', 'info');
 
                 try {
-                    this.supabase = window.supabase.createClient(url, key);
+                    this.supabase = window.supabase.createClient(url, key, {
+                        auth: {
+                            persistSession: true,
+                            autoRefreshToken: true,
+                            detectSessionInUrl: false,
+                            storage: window.localStorage
+                        }
+                    });
 
                     // Test the connection by trying to fetch from clients table
                     const { data, error } = await this.supabase.from('clients').select('count').limit(1);
@@ -669,6 +709,7 @@
                         // Render overview charts after DOM is ready
                         setTimeout(() => {
                             this.renderOverviewCharts();
+                            this.fixMobileGridLayouts();
                         }, 100);
                         break;
                     case 'payments':
@@ -704,6 +745,9 @@
                             contentDiv.innerHTML = await this.renderAnalytics();
                             // Charts are rendered automatically by processAnalyticsData in renderAnalytics
                             console.log('Analytics content loaded, charts should render shortly...');
+
+                            // Fix grid layouts on mobile
+                            this.fixMobileGridLayouts();
                         } catch (error) {
                             console.error('Error loading analytics content:', error);
                             contentDiv.innerHTML = `
@@ -1731,6 +1775,106 @@
             // CHART RENDERING SYSTEM
             // =============================================================================
 
+            isMobileDevice() {
+                return window.innerWidth <= 767;
+            }
+
+            fixMobileGridLayouts() {
+                if (!this.isMobileDevice()) return;
+
+                console.log('Applying mobile grid fixes...');
+
+                // Force all grid containers to single column
+                document.querySelectorAll('.data-section [style*="grid-template-columns"]').forEach(el => {
+                    el.style.display = 'block';
+                    el.style.gridTemplateColumns = 'none';
+                    el.style.width = '100%';
+                    console.log('Fixed grid container:', el);
+                });
+
+                // Fix inline padding
+                document.querySelectorAll('.data-section [style*="padding"]').forEach(el => {
+                    const currentPadding = parseInt(el.style.padding) || 0;
+                    if (currentPadding > 12) {
+                        el.style.padding = '12px';
+                    }
+                });
+
+                // Ensure all chart containers fit
+                document.querySelectorAll('.chart-container').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.marginLeft = '0';
+                    el.style.marginRight = '0';
+                    el.style.padding = '12px';
+                });
+
+                // Fix chart wrappers
+                document.querySelectorAll('.chart-wrapper').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                });
+            }
+
+            getMobileChartOptions(baseOptions) {
+                if (!this.isMobileDevice()) return baseOptions;
+
+                // Deep clone the options to avoid mutating the original
+                const mobileOptions = JSON.parse(JSON.stringify(baseOptions));
+
+                // Force responsive behavior
+                mobileOptions.responsive = true;
+                mobileOptions.maintainAspectRatio = true;
+                mobileOptions.aspectRatio = 1.5;
+
+                // Set device pixel ratio for proper rendering
+                if (!mobileOptions.devicePixelRatio) {
+                    mobileOptions.devicePixelRatio = window.devicePixelRatio || 1;
+                }
+
+                // Adjust legend position for mobile
+                if (mobileOptions.plugins?.legend) {
+                    if (mobileOptions.plugins.legend.position === 'right') {
+                        mobileOptions.plugins.legend.position = 'bottom';
+                    }
+                    // Reduce legend font size on mobile
+                    if (mobileOptions.plugins.legend.labels) {
+                        mobileOptions.plugins.legend.labels.font = {
+                            ...mobileOptions.plugins.legend.labels.font,
+                            size: 9
+                        };
+                        mobileOptions.plugins.legend.labels.padding = 6;
+                        mobileOptions.plugins.legend.labels.boxWidth = 12;
+                    }
+                }
+
+                // Add layout padding to prevent cutoff
+                if (!mobileOptions.layout) {
+                    mobileOptions.layout = {};
+                }
+                mobileOptions.layout.padding = {
+                    top: 5,
+                    right: 5,
+                    bottom: 5,
+                    left: 5
+                };
+
+                // Adjust scales for mobile
+                if (mobileOptions.scales) {
+                    Object.keys(mobileOptions.scales).forEach(axis => {
+                        if (mobileOptions.scales[axis].ticks) {
+                            mobileOptions.scales[axis].ticks.font = {
+                                size: 9
+                            };
+                            mobileOptions.scales[axis].ticks.maxRotation = 45;
+                            mobileOptions.scales[axis].ticks.minRotation = 0;
+                        }
+                    });
+                }
+
+                return mobileOptions;
+            }
+
             renderAllCharts() {
                 // Use the new validation method for better error handling
                 this.renderChartsWithValidation();
@@ -1782,7 +1926,7 @@
                             borderWidth: 1
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -1808,7 +1952,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -1858,7 +2002,7 @@
                             borderWidth: 1
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -1884,7 +2028,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -1931,6 +2075,57 @@
                     { bg: 'rgba(139, 92, 246, 0.9)', border: 'rgba(139, 92, 246, 1)' }
                 ];
 
+                const baseOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '50%',
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    weight: '500'
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+
+                                    return data.labels.map((label, i) => {
+                                        const value = data.datasets[0].data[i];
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        const isPaid = activeClients[i].isPaid;
+
+                                        return {
+                                            text: `${label} • $${value.toLocaleString()} (${percentage}%)${isPaid ? ' ✓' : ''}`,
+                                            fillStyle: data.datasets[0].backgroundColor[i],
+                                            strokeStyle: data.datasets[0].borderColor[i],
+                                            lineWidth: 2,
+                                            pointStyle: 'circle',
+                                            hidden: false,
+                                            index: i
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    const client = activeClients[context.dataIndex];
+                                    const status = client.isPaid ? 'Paid' : 'Unpaid';
+                                    return `${context.label}: $${value.toLocaleString()} (${percentage}%) - ${status}`;
+                                }
+                            }
+                        }
+                    }
+                };
+
                 this.charts.clientDistribution = new Chart(ctx.getContext('2d'), {
                     type: 'doughnut',
                     data: {
@@ -1944,56 +2139,7 @@
                             hoverBorderWidth: 3
                         }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '50%',
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                                labels: {
-                                    padding: 20,
-                                    usePointStyle: true,
-                                    font: {
-                                        size: 12,
-                                        weight: '500'
-                                    },
-                                    generateLabels: function(chart) {
-                                        const data = chart.data;
-                                        const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-
-                                        return data.labels.map((label, i) => {
-                                            const value = data.datasets[0].data[i];
-                                            const percentage = ((value / total) * 100).toFixed(1);
-                                            const isPaid = activeClients[i].isPaid;
-
-                                            return {
-                                                text: `${label} • $${value.toLocaleString()} (${percentage}%)${isPaid ? ' ✓' : ''}`,
-                                                fillStyle: data.datasets[0].backgroundColor[i],
-                                                strokeStyle: data.datasets[0].borderColor[i],
-                                                lineWidth: 2,
-                                                pointStyle: 'circle',
-                                                hidden: false,
-                                                index: i
-                                            };
-                                        });
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const value = context.parsed;
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = ((value / total) * 100).toFixed(1);
-                                        const client = activeClients[context.dataIndex];
-                                        const status = client.isPaid ? 'Paid' : 'Unpaid';
-                                        return `${context.label}: $${value.toLocaleString()} (${percentage}%) - ${status}`;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    options: this.getMobileChartOptions(baseOptions)
                 });
             }
 
@@ -2061,7 +2207,7 @@
                             fill: false
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         interaction: {
@@ -2117,7 +2263,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2152,7 +2298,7 @@
                             tension: 0.4
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -2174,7 +2320,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2241,7 +2387,7 @@
                             pointRadius: 0
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         interaction: {
@@ -2300,7 +2446,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2434,7 +2580,7 @@
                             yAxisID: 'y'
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -2460,7 +2606,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2483,7 +2629,7 @@
                             borderWidth: 2
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -2499,7 +2645,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2529,7 +2675,7 @@
                             fill: true
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -2553,7 +2699,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -2578,7 +2724,7 @@
                             borderWidth: 1
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -2601,7 +2747,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -4381,7 +4527,7 @@
                             borderSkipped: false
                         }]
                     },
-                    options: {
+                    options: this.getMobileChartOptions({
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
@@ -4414,7 +4560,7 @@
                                 }
                             }
                         }
-                    }
+                    })
                 });
             }
 
@@ -4446,6 +4592,28 @@
         // Prevent form submissions from refreshing page
         document.addEventListener('submit', (e) => {
             e.preventDefault();
+        });
+
+        // Mobile layout fixes on resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (Dashboard && Dashboard.isMobileDevice()) {
+                    console.log('Window resized, reapplying mobile fixes...');
+                    Dashboard.fixMobileGridLayouts();
+                }
+            }, 250);
+        });
+
+        // Apply mobile fixes on orientation change
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                if (Dashboard && Dashboard.isMobileDevice()) {
+                    console.log('Orientation changed, reapplying mobile fixes...');
+                    Dashboard.fixMobileGridLayouts();
+                }
+            }, 300);
         });
     </script>
 </body>
