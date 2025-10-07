@@ -410,12 +410,12 @@
 
         /* ========================================
            QUICK ACTIONS (Desktop ≥1024px)
-           Mobile adaptation: Line ~2611
+           Mobile adaptation: Line ~2571
            ======================================== */
 
         .quick-actions {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 20px;
             padding: 24px 32px;
             background: white;
