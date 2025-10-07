@@ -1,3 +1,8 @@
+        /* ========================================
+           CSS VARIABLES & THEMING
+           Mobile adaptation: N/A (used globally)
+           ======================================== */
+
         :root {
             --primary-text: #1f2937;
             --secondary-text: #6b7280;
@@ -403,6 +408,11 @@
         .nav-tab-icon {
             font-size: 1.2em;
         }
+
+        /* ========================================
+           QUICK ACTIONS (Desktop ≥1024px)
+           Mobile adaptation: Line ~2598
+           ======================================== */
 
         .quick-actions {
             display: flex;
@@ -1200,7 +1210,11 @@
             transform: translateY(0);
         }
 
-        /* Chart Containers */
+        /* ========================================
+           CHART CONTAINERS (Desktop ≥1024px)
+           Mobile adaptation: Line ~2714
+           ======================================== */
+
         .chart-container {
             background: var(--card-background);
             border: 1px solid var(--border-gray);
@@ -2594,7 +2608,11 @@
                 justify-content: center;
             }
 
-            /* Quick Actions - Mobile 2x2 Grid */
+            /* ========================================
+               [QUICK ACTIONS] - Mobile (<768px)
+               Desktop version: Line ~417
+               ======================================== */
+
             .quick-actions {
                 padding: 12px !important;
                 display: grid !important;
@@ -2817,7 +2835,11 @@
                 background: var(--card-background);
             }
 
-            /* Charts */
+            /* ========================================
+               [CHART CONTAINERS] - Mobile (<768px)
+               Desktop version: Line ~1218
+               ======================================== */
+
             .chart-container {
                 padding: 12px !important;
                 margin-bottom: 20px !important;

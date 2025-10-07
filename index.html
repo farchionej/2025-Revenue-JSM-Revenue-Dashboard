@@ -1816,6 +1816,16 @@
                 });
             }
 
+            applyMobileAdaptation(elementSelector, mobileStyles) {
+                if (!this.isMobileDevice()) return;
+
+                console.log(`Applying mobile adaptation to: ${elementSelector}`);
+
+                document.querySelectorAll(elementSelector).forEach(el => {
+                    Object.assign(el.style, mobileStyles);
+                });
+            }
+
             getMobileChartOptions(baseOptions) {
                 if (!this.isMobileDevice()) return baseOptions;
 
