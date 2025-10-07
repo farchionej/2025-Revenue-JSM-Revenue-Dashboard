@@ -2141,6 +2141,28 @@
             }
 
             async processMonthlyPerformance(metrics, clients, monthlyData) {
+                // Actual historical monthly revenue data
+                const actualRevenueData = new Map([
+                    ['2023-12', 1600],
+                    ['2024-01', 1950],
+                    ['2024-02', 2500],
+                    ['2024-03', 3425],
+                    ['2024-04', 3950],
+                    ['2024-05', 4975],
+                    ['2024-06', 5350],
+                    ['2024-07', 5400],
+                    ['2024-08', 7850],
+                    ['2024-09', 6150],
+                    ['2024-10', 6900],
+                    ['2024-11', 6800],
+                    ['2024-12', 6800],
+                    ['2025-01', 7100],
+                    ['2025-02', 10450],
+                    ['2025-03', 9250],
+                    ['2025-04', 13260],
+                    ['2025-05', 13260]
+                ]);
+
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
                 const chronologicalData = monthlyData.slice().reverse();
 
@@ -2160,16 +2182,22 @@
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
-                    // Calculate expected revenue for this month
+                    // Use actual historical revenue data if available, otherwise calculate from clients
                     let expectedRevenue = 0;
-                    clients.forEach(client => {
-                        if (client.status === 'active') {
-                            const clientStart = new Date(client.start_date || '2024-01-01');
-                            if (clientStart <= monthDate) {
-                                expectedRevenue += parseFloat(client.amount) || 0;
+                    if (actualRevenueData.has(month)) {
+                        expectedRevenue = actualRevenueData.get(month);
+                        console.log(`Using actual revenue data for ${month}: $${expectedRevenue}`);
+                    } else {
+                        // Calculate expected revenue for current/future months from active clients
+                        clients.forEach(client => {
+                            if (client.status === 'active') {
+                                const clientStart = new Date(client.start_date || '2024-01-01');
+                                if (clientStart <= monthDate) {
+                                    expectedRevenue += parseFloat(client.amount) || 0;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     // Get actual payments for this month
                     let actualRevenue = 0;
@@ -5540,6 +5568,28 @@
                 const ctx = document.getElementById('overviewMonthlyRevenueChart');
                 if (!ctx) return;
 
+                // Actual historical monthly revenue data
+                const actualRevenueData = new Map([
+                    ['2023-12', 1600],
+                    ['2024-01', 1950],
+                    ['2024-02', 2500],
+                    ['2024-03', 3425],
+                    ['2024-04', 3950],
+                    ['2024-05', 4975],
+                    ['2024-06', 5350],
+                    ['2024-07', 5400],
+                    ['2024-08', 7850],
+                    ['2024-09', 6150],
+                    ['2024-10', 6900],
+                    ['2024-11', 6800],
+                    ['2024-12', 6800],
+                    ['2025-01', 7100],
+                    ['2025-02', 10450],
+                    ['2025-03', 9250],
+                    ['2025-04', 13260],
+                    ['2025-05', 13260]
+                ]);
+
                 // Calculate historical revenue progression based on client acquisition and growth
                 const activeClients = clients.filter(c => c.status === 'active');
 
@@ -5601,70 +5651,32 @@
                     }
                 });
 
-                // Generate last 12 months with historical progression
+                // Generate last 18 months with actual historical revenue data
                 const currentMonthStr = currentDate.toISOString().slice(0, 7); // Current month in YYYY-MM format
 
-                for (let i = 11; i >= 0; i--) {
+                for (let i = 17; i >= 0; i--) {
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
                     const monthStr = date.toISOString().slice(0, 7); // YYYY-MM format
                     const displayMonth = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 
                     let monthlyRevenue = 0;
 
-                    // Use real-time calculation for current month, historical for others
-                    if (monthStr === currentMonthStr) {
+                    // Use actual historical data if available, otherwise calculate dynamically for current month
+                    if (actualRevenueData.has(monthStr)) {
+                        monthlyRevenue = actualRevenueData.get(monthStr);
+                        console.log(`Using actual revenue for ${monthStr}: $${monthlyRevenue}`);
+                    } else if (monthStr === currentMonthStr) {
                         // DYNAMIC CALCULATION: Use real-time active client data for current month
                         monthlyRevenue = activeClients.reduce((sum, client) => {
                             return sum + (parseFloat(client.amount) || 0);
                         }, 0);
-
                         console.log(`Dynamic calculation for ${monthStr}: $${monthlyRevenue} from ${activeClients.length} active clients`);
-                    } else {
-                        // HISTORICAL CALCULATION: Use hardcoded timeline for past months
-                        clientAmountHistory.forEach((amountHistory, clientName) => {
-                            // Find the appropriate amount for this month
-                            let clientAmount = 0;
-                            for (const period of amountHistory) {
-                                if (monthStr >= period.startDate.slice(0, 7)) {
-                                    clientAmount = period.amount;
-                                }
-                            }
-
-                            // Only include if client had started by this month
-                            const clientStartDate = clientStartDates.get(clientName);
-                            if (clientStartDate && monthStr >= clientStartDate.slice(0, 7)) {
-                                monthlyRevenue += clientAmount;
-                            }
-                        });
                     }
 
                     monthsData.push({
                         month: monthStr,
                         display: displayMonth,
                         expected: monthlyRevenue
-                    });
-                }
-
-                // Override with actual Master Invoice Log data where available
-                if (masterLogData && masterLogData.length > 0) {
-                    const monthlyTotals = new Map();
-
-                    masterLogData.forEach(record => {
-                        const month = record.month;
-                        const amount = parseFloat(record.amount.toString().replace(/,/g, ''));
-
-                        if (!monthlyTotals.has(month)) {
-                            monthlyTotals.set(month, 0);
-                        }
-                        monthlyTotals.set(month, monthlyTotals.get(month) + amount);
-                    });
-
-                    // Update with actual data where available, but preserve dynamic calculation for current month
-                    monthsData.forEach(monthData => {
-                        if (monthlyTotals.has(monthData.month) && monthData.month !== currentMonthStr) {
-                            // Only override historical months, not current month (preserve dynamic calculation)
-                            monthData.expected = monthlyTotals.get(monthData.month);
-                        }
                     });
                 }
 
