@@ -1284,6 +1284,19 @@
                             <div class="section-subtitle">Unified client database and payment tracking</div>
                         </div>
 
+                        <!-- Search Bar -->
+                        <div class="search-container">
+                            <input
+                                type="text"
+                                id="clientSearch"
+                                class="search-input"
+                                placeholder="Search clients by name, amount, status..."
+                                oninput="Dashboard.searchClients(this.value)"
+                            >
+                            <span class="search-icon">🔍</span>
+                            <button class="search-clear" onclick="Dashboard.clearSearch()" style="display: none;">✕</button>
+                        </div>
+
                         <div class="section-controls">
                             <div class="control-section">
                                 <!-- Smart Filter Group -->
@@ -1309,11 +1322,6 @@
                             </div>
 
                             <div style="margin-left: auto; display: flex; gap: 12px;">
-                                ${unpaidCount > 0 ? `
-                                    <button class="btn success" onclick="Dashboard.actions.markAllPaid()">
-                                        Mark All Paid
-                                    </button>
-                                ` : ''}
                                 <button class="btn primary" onclick="Dashboard.actions.addClient()">+ Add Client</button>
                             </div>
                         </div>
@@ -4578,6 +4586,12 @@
                     });
                 }
 
+                // Apply search filter if active
+                const searchInput = document.getElementById('clientSearch');
+                if (searchInput && searchInput.value.trim()) {
+                    filteredClients = this.applySearchFilter(filteredClients, searchInput.value.toLowerCase().trim());
+                }
+
                 // Apply current sort if any
                 if (this.clientPaymentsSortColumn) {
                     filteredClients = this.sortClientPaymentsData(filteredClients, paymentMap, this.clientPaymentsSortColumn, this.clientPaymentsSortDirection);
@@ -4590,6 +4604,51 @@
                     setTimeout(async () => {
                         await this.updateLifetimeValues(filteredClients);
                     }, 100);
+                }
+            }
+
+            searchClients(searchTerm) {
+                // Show/hide clear button immediately
+                const clearBtn = document.querySelector('.search-clear');
+                if (clearBtn) {
+                    clearBtn.style.display = searchTerm.trim() ? 'flex' : 'none';
+                }
+
+                // Clear any pending search timeout for smooth performance
+                if (this.searchTimeout) {
+                    clearTimeout(this.searchTimeout);
+                }
+
+                // Debounce search for smooth performance (100ms delay)
+                this.searchTimeout = setTimeout(() => {
+                    // Get current filter
+                    const activeFilterBtn = document.querySelector('.filter-btn.active');
+                    const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().split(' ')[0].toLowerCase() : 'all';
+
+                    // Re-render with search applied
+                    this.renderFilteredClientPayments(currentFilter);
+                }, 100);
+            }
+
+            applySearchFilter(clients, searchTerm) {
+                return clients.filter(client => {
+                    const clientName = (client.name || '').toLowerCase();
+                    const amount = (client.amount || '').toString();
+                    const status = (client.status || '').toLowerCase();
+                    const startDate = (client.start_date || '').toLowerCase();
+
+                    return clientName.includes(searchTerm) ||
+                           amount.includes(searchTerm) ||
+                           status.includes(searchTerm) ||
+                           startDate.includes(searchTerm);
+                });
+            }
+
+            clearSearch() {
+                const searchInput = document.getElementById('clientSearch');
+                if (searchInput) {
+                    searchInput.value = '';
+                    this.searchClients('');
                 }
             }
 
@@ -6258,6 +6317,73 @@
                 } finally {
                     this.hideLoading();
                 }
+            }
+
+            // =============================================================================
+            // MOBILE HELPER FUNCTIONS
+            // =============================================================================
+
+            isMobileDevice() {
+                return window.innerWidth <= 767;
+            }
+
+            fixMobileGridLayouts() {
+                if (!this.isMobileDevice()) return;
+                console.log('Applying mobile grid fixes...');
+
+                // Force all grid containers to single column
+                document.querySelectorAll('.data-section [style*="grid-template-columns"]').forEach(el => {
+                    el.style.display = 'block';
+                    el.style.gridTemplateColumns = 'none';
+                    el.style.width = '100%';
+                });
+
+                // Ensure all chart containers fit
+                document.querySelectorAll('.chart-container').forEach(el => {
+                    el.style.width = '100%';
+                    el.style.maxWidth = '100%';
+                    el.style.marginLeft = '0';
+                    el.style.marginRight = '0';
+                    el.style.padding = '12px';
+                });
+            }
+
+            getMobileChartOptions(baseOptions) {
+                if (!this.isMobileDevice()) return baseOptions;
+
+                const mobileOptions = JSON.parse(JSON.stringify(baseOptions));
+
+                // Force responsive behavior
+                mobileOptions.responsive = true;
+                mobileOptions.maintainAspectRatio = true;
+                mobileOptions.aspectRatio = 1.5;
+                mobileOptions.devicePixelRatio = window.devicePixelRatio || 1;
+
+                // Adjust legend position for mobile
+                if (mobileOptions.plugins?.legend) {
+                    if (mobileOptions.plugins.legend.position === 'right') {
+                        mobileOptions.plugins.legend.position = 'bottom';
+                    }
+                    mobileOptions.plugins.legend.labels = mobileOptions.plugins.legend.labels || {};
+                    mobileOptions.plugins.legend.labels.font = { size: 9 };
+                    mobileOptions.plugins.legend.labels.padding = 6;
+                    mobileOptions.plugins.legend.labels.boxWidth = 12;
+                }
+
+                // Add layout padding to prevent cutoff
+                mobileOptions.layout = mobileOptions.layout || {};
+                mobileOptions.layout.padding = { top: 5, right: 5, bottom: 5, left: 5 };
+
+                // Reduce font sizes for mobile
+                if (mobileOptions.scales) {
+                    Object.keys(mobileOptions.scales).forEach(scaleKey => {
+                        if (mobileOptions.scales[scaleKey].ticks) {
+                            mobileOptions.scales[scaleKey].ticks.font = { size: 10 };
+                        }
+                    });
+                }
+
+                return mobileOptions;
             }
 
 
