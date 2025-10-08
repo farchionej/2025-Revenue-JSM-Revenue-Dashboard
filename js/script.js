@@ -704,8 +704,27 @@
                         return;
                     }
 
-                    // Create payment records for each client for this month
-                    const paymentRecords = clients.map(client => ({
+                    // Check which clients already have payment records for this month
+                    const { data: existingPayments, error: checkError } = await this.supabase
+                        .from('monthly_payments')
+                        .select('client_id')
+                        .eq('month', month);
+
+                    if (checkError) throw checkError;
+
+                    // Create a Set of client IDs that already have payments
+                    const existingClientIds = new Set(existingPayments?.map(p => p.client_id) || []);
+
+                    // Filter out clients that already have payments
+                    const clientsNeedingPayments = clients.filter(client => !existingClientIds.has(client.id));
+
+                    if (clientsNeedingPayments.length === 0) {
+                        console.log(`All clients already have payment records for ${month}`);
+                        return;
+                    }
+
+                    // Create payment records only for clients that don't have them
+                    const paymentRecords = clientsNeedingPayments.map(client => ({
                         client_id: client.id,
                         month: month,
                         amount: client.amount,
@@ -720,7 +739,7 @@
 
                     if (error) throw error;
 
-                    console.log(`Created ${paymentRecords.length} payment records for ${month}`);
+                    console.log(`Created ${paymentRecords.length} payment records for ${month} (${existingClientIds.size} already existed)`);
                     return data;
                 } catch (error) {
                     console.error('Error creating payments for month:', error);
@@ -813,6 +832,95 @@
                 } catch (error) {
                     console.error('Error loading monthly data:', error);
                     return [];
+                }
+            }
+
+            async detectAndCleanDuplicatePayments() {
+                console.log('🔍 Scanning for duplicate payment records...');
+
+                try {
+                    // Get ALL payment records
+                    const { data: allPayments, error } = await this.supabase
+                        .from('monthly_payments')
+                        .select('id, client_id, month, status, payment_date, amount, created_at')
+                        .order('created_at', { ascending: true });
+
+                    if (error) throw error;
+
+                    if (!allPayments || allPayments.length === 0) {
+                        console.log('No payments found');
+                        return { duplicatesFound: 0, duplicatesDeleted: 0 };
+                    }
+
+                    // Group by client_id + month to find duplicates
+                    const groupMap = new Map();
+                    allPayments.forEach(payment => {
+                        const key = `${payment.client_id}_${payment.month}`;
+                        if (!groupMap.has(key)) {
+                            groupMap.set(key, []);
+                        }
+                        groupMap.get(key).push(payment);
+                    });
+
+                    // Find groups with duplicates (more than 1 record)
+                    const duplicateGroups = [];
+                    for (const [key, records] of groupMap.entries()) {
+                        if (records.length > 1) {
+                            duplicateGroups.push({ key, records });
+                        }
+                    }
+
+                    if (duplicateGroups.length === 0) {
+                        console.log('✅ No duplicates found!');
+                        return { duplicatesFound: 0, duplicatesDeleted: 0 };
+                    }
+
+                    console.warn(`⚠️ Found ${duplicateGroups.length} duplicate groups (${duplicateGroups.reduce((sum, g) => sum + g.records.length - 1, 0)} duplicate records)`);
+
+                    // For each duplicate group, keep the most recent record and delete others
+                    let deletedCount = 0;
+                    for (const group of duplicateGroups) {
+                        const sorted = group.records.sort((a, b) =>
+                            new Date(b.created_at || 0) - new Date(a.created_at || 0)
+                        );
+                        const toKeep = sorted[0];
+                        const toDelete = sorted.slice(1);
+
+                        console.log(`  Duplicate group ${group.key}:`);
+                        console.log(`    Keeping: ID ${toKeep.id} (${toKeep.status}, created: ${toKeep.created_at})`);
+
+                        for (const record of toDelete) {
+                            console.log(`    Deleting: ID ${record.id} (${record.status}, created: ${record.created_at})`);
+
+                            const { error: deleteError } = await this.supabase
+                                .from('monthly_payments')
+                                .delete()
+                                .eq('id', record.id);
+
+                            if (deleteError) {
+                                console.error(`    ❌ Failed to delete ID ${record.id}:`, deleteError);
+                            } else {
+                                deletedCount++;
+                            }
+                        }
+                    }
+
+                    console.log(`✅ Cleanup complete: Deleted ${deletedCount} duplicate records`);
+                    this.clearCache();
+
+                    return {
+                        duplicatesFound: duplicateGroups.reduce((sum, g) => sum + g.records.length - 1, 0),
+                        duplicatesDeleted: deletedCount,
+                        groups: duplicateGroups.map(g => ({
+                            clientId: g.records[0].client_id,
+                            month: g.records[0].month,
+                            count: g.records.length
+                        }))
+                    };
+
+                } catch (error) {
+                    console.error('❌ Error detecting/cleaning duplicates:', error);
+                    throw error;
                 }
             }
 
@@ -3385,7 +3493,20 @@
             }
 
             async togglePaymentStatus(paymentId, newStatus) {
-                console.log('🔍 togglePaymentStatus called with:', { paymentId, newStatus });
+                console.log('🔍 togglePaymentStatus called with:', { paymentId, newStatus, currentMonth: this.currentMonth });
+
+                // First, get the payment details BEFORE updating
+                const { data: beforePayment, error: fetchError } = await this.supabase
+                    .from('monthly_payments')
+                    .select('id, client_id, month, status, amount')
+                    .eq('id', paymentId)
+                    .single();
+
+                if (fetchError) {
+                    console.error('❌ Error fetching payment before update:', fetchError);
+                } else {
+                    console.log('📋 Payment BEFORE update:', beforePayment);
+                }
 
                 // Set payment_date to today if marking as paid, null otherwise
                 const paymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
@@ -3394,18 +3515,31 @@
 
                 this.showLoading();
                 try {
-                    console.log('📡 Updating Supabase with:', { status: newStatus, payment_date: paymentDate });
-                    const { error } = await this.supabase
+                    console.log('📡 Updating Supabase with:', { status: newStatus, payment_date: paymentDate, paymentId });
+                    const { data, error, count } = await this.supabase
                         .from('monthly_payments')
                         .update({ status: newStatus, payment_date: paymentDate })
-                        .eq('id', paymentId);
+                        .eq('id', paymentId)
+                        .select();
 
                     if (error) {
                         console.error('❌ Supabase error:', error);
                         throw error;
                     }
 
-                    console.log('✅ Supabase update successful');
+                    // Log how many records were affected
+                    const affectedCount = data ? data.length : 0;
+                    console.log(`✅ Supabase update successful - ${affectedCount} record(s) updated`);
+
+                    if (affectedCount === 0) {
+                        console.warn('⚠️ WARNING: No records were updated! Payment ID may not exist.');
+                    } else if (affectedCount > 1) {
+                        console.error(`🚨 CRITICAL: ${affectedCount} records were updated! This should only affect 1 record.`);
+                        console.error('Updated records:', data);
+                    } else {
+                        console.log('✅ Exactly 1 record updated (correct):', data[0]);
+                    }
+
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
@@ -6408,7 +6542,7 @@
                         Dashboard = new DashboardCore();
                         console.log('✅ Dashboard created successfully:', Dashboard);
 
-                        // Add global helper function for populating future months
+                        // Add global helper functions
                         window.populateFutureMonths = () => {
                             if (Dashboard && Dashboard.populateFutureMonths) {
                                 console.log('🚀 Starting future months population...');
@@ -6418,7 +6552,43 @@
                             }
                         };
 
-                        console.log('💡 TIP: Run populateFutureMonths() in console to setup October 2025 and future months');
+                        window.detectDuplicates = async () => {
+                            if (Dashboard && Dashboard.detectAndCleanDuplicatePayments) {
+                                console.log('🔍 Starting duplicate detection...');
+                                try {
+                                    const result = await Dashboard.detectAndCleanDuplicatePayments();
+                                    console.log('📊 Duplicate Detection Results:', result);
+                                    if (result.duplicatesDeleted > 0) {
+                                        Dashboard.toast(`Cleaned up ${result.duplicatesDeleted} duplicate payment records!`, 'success');
+                                        Dashboard.refreshData();
+                                    } else {
+                                        Dashboard.toast('No duplicates found!', 'success');
+                                    }
+                                    return result;
+                                } catch (error) {
+                                    console.error('❌ Error detecting duplicates:', error);
+                                    Dashboard.toast('Error detecting duplicates: ' + error.message, 'error');
+                                }
+                            } else {
+                                console.error('Dashboard not ready or function not available');
+                            }
+                        };
+
+                        window.forceRefresh = () => {
+                            if (Dashboard) {
+                                console.log('🔄 Force refreshing all data...');
+                                Dashboard.clearCache();
+                                Dashboard.refreshData();
+                                Dashboard.toast('Data refreshed!', 'success');
+                            } else {
+                                console.error('Dashboard not ready');
+                            }
+                        };
+
+                        console.log('💡 TIPS:');
+                        console.log('  - Run populateFutureMonths() to setup October 2025 and future months');
+                        console.log('  - Run detectDuplicates() to find and clean duplicate payment records');
+                        console.log('  - Run forceRefresh() to clear cache and reload all data');
 
                     } catch (error) {
                         console.error('❌ Error creating Dashboard:', error);
