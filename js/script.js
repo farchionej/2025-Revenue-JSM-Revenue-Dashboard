@@ -564,10 +564,8 @@
 
             async setCurrentMonth(month) {
                 this.currentMonth = month;
-                this.clearCache();
-                await this.refreshData();
                 // Re-render the current tab to show the new month's data
-                this.renderTabContent(this.currentTab);
+                await this.renderTabContent(this.currentTab);
                 this.toast('Month changed to ' + month, 'info');
             }
 
@@ -594,10 +592,8 @@
             }
 
             async refreshData() {
-                this.clearCache();
-                await this.loadInitialData();
-                // Re-render the current tab to show updated data
-                this.renderTabContent(this.currentTab);
+                // Re-render the current tab to show updated data (will fetch fresh from database)
+                await this.renderTabContent(this.currentTab);
             }
 
             clearCache() {
@@ -605,10 +601,7 @@
             }
 
             async loadClients() {
-                if (this.cache.has('clients')) {
-                    return this.cache.get('clients');
-                }
-
+                // DATABASE-FIRST: Always query fresh from database, no caching
                 this.updateSyncStatus('syncing');
                 try {
                     const { data, error } = await this.supabase
@@ -618,7 +611,6 @@
 
                     if (error) throw error;
 
-                    this.cache.set('clients', data);
                     this.updateSyncStatus('connected');
                     return data;
                 } catch (error) {
@@ -628,14 +620,10 @@
             }
 
             async loadPayments() {
-                const cacheKey = `payments_${this.currentMonth}`;
-                if (this.cache.has(cacheKey)) {
-                    return this.cache.get(cacheKey);
-                }
-
+                // DATABASE-FIRST: Always query fresh from database, no caching
                 this.updateSyncStatus('syncing');
                 try {
-                    // First, try to load existing payments for this month
+                    // Query database for current month's payments
                     const { data, error } = await this.supabase
                         .from('monthly_payments')
                         .select(`
@@ -683,7 +671,6 @@
                         );
                     }
 
-                    this.cache.set(cacheKey, paymentsData);
                     this.updateSyncStatus('connected');
                     return paymentsData;
                 } catch (error) {
@@ -932,14 +919,14 @@
             // UI MANAGEMENT
             // =============================================================================
 
-            showTab(tabName) {
+            async showTab(tabName) {
                 // Update nav tabs
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.classList.toggle('active', tab.dataset.tab === tabName);
                 });
 
                 this.currentTab = tabName;
-                this.renderTabContent(tabName);
+                await this.renderTabContent(tabName);
             }
 
             async renderTabContent(tabName) {
@@ -3544,10 +3531,8 @@
                         console.log('✅ Exactly 1 record updated (correct):', data[0]);
                     }
 
-                    this.clearCache();
-                    await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`Payment marked as ${newStatus}`, 'success');
                 } catch (error) {
@@ -3624,9 +3609,8 @@
 
                     if (error) throw error;
 
-                    this.clearCache();
                     await this.loadClients();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`Client status updated to ${newStatus}`, 'success');
                 } catch (error) {
@@ -3680,7 +3664,7 @@
                     await this.loadClients();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`${client.name} status changed to ${newStatus}`, 'success');
                 } catch (error) {
@@ -3747,7 +3731,7 @@
                     await this.loadClients();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`${client.name} deleted successfully`, 'success');
                 } catch (error) {
@@ -3785,7 +3769,7 @@
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`${unpaidPayments.length} payments marked as paid`, 'success');
                 } catch (error) {
@@ -3982,7 +3966,7 @@
 
                     this.clearCache();
                     await this.loadPayments();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
                     this.toast('Notes updated successfully', 'success');
                 } catch (error) {
                     this.toast('Failed to update notes', 'error');
@@ -4018,7 +4002,7 @@
 
                     this.clearCache();
                     await this.loadPayments();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
                     this.toast('Payment date updated successfully', 'success');
                 } catch (error) {
                     this.toast('Failed to update payment date', 'error');
@@ -4230,7 +4214,7 @@
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
                     this.toast('Payment marked as paid!', 'success');
                 } catch (error) {
                     this.toast('Failed to mark payment as paid', 'error');
@@ -4336,7 +4320,7 @@
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
                     this.toast(`${paymentIds.length} payments marked as paid!`, 'success');
                 } catch (error) {
                     this.toast('Failed to process payments', 'error');
@@ -4424,7 +4408,7 @@
                     this.closeModal();
                     this.clearCache();
                     await this.loadClients();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`Client "${name}" added successfully!`, 'success');
                 } catch (error) {
@@ -6183,7 +6167,7 @@
                     await this.loadClients();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast('Successfully merged into "FSDC by Regal"!', 'success');
                     console.log('✅ Merge completed');
@@ -6288,7 +6272,7 @@
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`Migration complete! Updated ${updatedCount} payment records.`, 'success');
                 } catch (error) {
@@ -6371,7 +6355,7 @@
                     this.clearCache();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast(`Cleaned up ${deletedCount} duplicate payment records!`, 'success');
                 } catch (error) {
@@ -6445,7 +6429,7 @@
                     await this.loadClients();
                     await this.loadPayments();
                     await this.updateQuickStats();
-                    this.renderTabContent(this.currentTab);
+                    await this.renderTabContent(this.currentTab);
 
                     this.toast('Client cleanup completed successfully!', 'success');
                     console.log('✅ Client cleanup completed');
