@@ -978,6 +978,19 @@
                             <div class="section-subtitle">${allCount} active clients${pausedCount > 0 ? ` • ${pausedCount} paused` : ''}</div>
                         </div>
 
+                        <!-- Search Bar -->
+                        <div class="search-container">
+                            <input
+                                type="text"
+                                id="clientSearch"
+                                class="search-input"
+                                placeholder="Search clients by name, amount, status..."
+                                oninput="Dashboard.searchClients(this.value)"
+                            >
+                            <span class="search-icon">🔍</span>
+                            <button class="search-clear" onclick="Dashboard.clearSearch()" style="display: none;">✕</button>
+                        </div>
+
                         <div class="section-controls">
                             <div class="control-section">
                                 <!-- Simplified Filter Group -->
@@ -3403,6 +3416,13 @@
                     });
                 }
 
+                // Apply search filter if active
+                const searchInput = document.getElementById('clientSearch');
+                if (searchInput && searchInput.value.trim()) {
+                    const searchTerm = searchInput.value.toLowerCase().trim();
+                    filteredPayments = this.applySearchFilter(filteredPayments, searchTerm);
+                }
+
                 // Apply current sort if any
                 if (this.paymentsSortColumn) {
                     filteredPayments = this.sortPaymentsData(filteredPayments, this.paymentsSortColumn, this.paymentsSortDirection);
@@ -3411,6 +3431,45 @@
                 const tableBody = document.getElementById('paymentsTableBody');
                 if (tableBody) {
                     tableBody.innerHTML = this.renderEnhancedPaymentRows(filteredPayments);
+                }
+            }
+
+            searchClients(searchTerm) {
+                // Show/hide clear button
+                const clearBtn = document.querySelector('.search-clear');
+                if (clearBtn) {
+                    clearBtn.style.display = searchTerm.trim() ? 'flex' : 'none';
+                }
+
+                // Get current filter
+                const activeFilterBtn = document.querySelector('.filter-btn.active');
+                const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().split(' ')[0].toLowerCase() : 'all';
+
+                // Re-render with search applied
+                this.renderFilteredPayments(currentFilter);
+            }
+
+            applySearchFilter(payments, searchTerm) {
+                return payments.filter(payment => {
+                    const clientName = (payment.clients?.clientName || '').toLowerCase();
+                    const amount = (payment.clients?.amount || '').toString();
+                    const status = (payment.status || '').toLowerCase();
+                    const clientStatus = (payment.clients?.status || '').toLowerCase();
+                    const notes = (payment.notes || '').toLowerCase();
+
+                    return clientName.includes(searchTerm) ||
+                           amount.includes(searchTerm) ||
+                           status.includes(searchTerm) ||
+                           clientStatus.includes(searchTerm) ||
+                           notes.includes(searchTerm);
+                });
+            }
+
+            clearSearch() {
+                const searchInput = document.getElementById('clientSearch');
+                if (searchInput) {
+                    searchInput.value = '';
+                    this.searchClients('');
                 }
             }
 
