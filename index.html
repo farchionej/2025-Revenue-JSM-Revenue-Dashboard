@@ -1221,6 +1221,19 @@
                             <div class="section-subtitle">Manage your client database and billing information</div>
                         </div>
 
+                        <!-- Search Bar -->
+                        <div class="search-container">
+                            <input
+                                type="text"
+                                id="clientSearch"
+                                class="search-input"
+                                placeholder="Search clients by name, amount, status..."
+                                oninput="Dashboard.searchClients(this.value)"
+                            >
+                            <span class="search-icon">🔍</span>
+                            <button class="search-clear" onclick="Dashboard.clearSearch()" style="display: none;">✕</button>
+                        </div>
+
                         <div class="section-controls">
                             <div class="filter-group">
                                 <span style="font-weight: 500; margin-right: 12px;">Filter:</span>
@@ -3439,29 +3452,45 @@
                 }
 
                 // Debounce search for smooth performance (100ms delay)
-                this.searchTimeout = setTimeout(() => {
+                this.searchTimeout = setTimeout(async () => {
                     // Get current filter
                     const activeFilterBtn = document.querySelector('.filter-btn.active');
-                    const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().split(' ')[0].toLowerCase() : 'all';
+                    const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().toLowerCase() : 'all';
 
-                    // Re-render with search applied
-                    this.renderFilteredPayments(currentFilter);
+                    // Load clients and apply filters
+                    let clients = await this.loadClients();
+
+                    // Apply status filter
+                    if (currentFilter !== 'all') {
+                        clients = clients.filter(c => c.status === currentFilter);
+                    }
+
+                    // Apply search filter
+                    if (searchTerm.trim()) {
+                        clients = this.applySearchFilter(clients, searchTerm.toLowerCase().trim());
+                    }
+
+                    // Re-render table
+                    const tableBody = document.getElementById('clientsTableBody');
+                    if (tableBody) {
+                        tableBody.innerHTML = this.renderClientRows(clients);
+                        // Update lifetime values
+                        this.updateAllLifetimeValues(clients);
+                    }
                 }, 100);
             }
 
-            applySearchFilter(payments, searchTerm) {
-                return payments.filter(payment => {
-                    const clientName = (payment.clients?.clientName || '').toLowerCase();
-                    const amount = (payment.clients?.amount || '').toString();
-                    const status = (payment.status || '').toLowerCase();
-                    const clientStatus = (payment.clients?.status || '').toLowerCase();
-                    const notes = (payment.notes || '').toLowerCase();
+            applySearchFilter(clients, searchTerm) {
+                return clients.filter(client => {
+                    const clientName = (client.name || '').toLowerCase();
+                    const amount = (client.amount || '').toString();
+                    const status = (client.status || '').toLowerCase();
+                    const startDate = (client.start_date || '').toLowerCase();
 
                     return clientName.includes(searchTerm) ||
                            amount.includes(searchTerm) ||
                            status.includes(searchTerm) ||
-                           clientStatus.includes(searchTerm) ||
-                           notes.includes(searchTerm);
+                           startDate.includes(searchTerm);
                 });
             }
 
@@ -3492,12 +3521,20 @@
                     filteredClients = clients.filter(client => client.status === filter);
                 }
 
+                // Apply search filter if active
+                const searchInput = document.getElementById('clientSearch');
+                if (searchInput && searchInput.value.trim()) {
+                    filteredClients = this.applySearchFilter(filteredClients, searchInput.value.toLowerCase().trim());
+                }
+
                 // Apply current sort if any
                 if (this.clientsSortColumn) {
                     filteredClients = this.sortClientsData(filteredClients, this.clientsSortColumn, this.clientsSortDirection);
                 }
 
                 document.getElementById('clientsTableBody').innerHTML = this.renderClientRows(filteredClients);
+                // Update lifetime values
+                this.updateAllLifetimeValues(filteredClients);
             }
 
             async sortPayments(column) {
