@@ -3435,18 +3435,26 @@
             }
 
             searchClients(searchTerm) {
-                // Show/hide clear button
+                // Show/hide clear button immediately
                 const clearBtn = document.querySelector('.search-clear');
                 if (clearBtn) {
                     clearBtn.style.display = searchTerm.trim() ? 'flex' : 'none';
                 }
 
-                // Get current filter
-                const activeFilterBtn = document.querySelector('.filter-btn.active');
-                const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().split(' ')[0].toLowerCase() : 'all';
+                // Clear any pending search timeout for smooth performance
+                if (this.searchTimeout) {
+                    clearTimeout(this.searchTimeout);
+                }
 
-                // Re-render with search applied
-                this.renderFilteredPayments(currentFilter);
+                // Debounce search for smooth performance (100ms delay)
+                this.searchTimeout = setTimeout(() => {
+                    // Get current filter
+                    const activeFilterBtn = document.querySelector('.filter-btn.active');
+                    const currentFilter = activeFilterBtn ? activeFilterBtn.textContent.trim().split(' ')[0].toLowerCase() : 'all';
+
+                    // Re-render with search applied
+                    this.renderFilteredPayments(currentFilter);
+                }, 100);
             }
 
             applySearchFilter(payments, searchTerm) {
