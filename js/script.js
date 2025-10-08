@@ -3486,7 +3486,7 @@
             async togglePaymentStatus(paymentId, newStatus) {
                 console.log('🔍 togglePaymentStatus called with:', { paymentId, newStatus, currentMonth: this.currentMonth });
 
-                // First, get the payment details BEFORE updating
+                // SAFETY CHECK: Get payment details and verify it's for current month
                 const { data: beforePayment, error: fetchError } = await this.supabase
                     .from('monthly_payments')
                     .select('id, client_id, month, status, amount')
@@ -3495,8 +3495,21 @@
 
                 if (fetchError) {
                     console.error('❌ Error fetching payment before update:', fetchError);
-                } else {
-                    console.log('📋 Payment BEFORE update:', beforePayment);
+                    this.toast('Failed to find payment record', 'error');
+                    return;
+                }
+
+                console.log('📋 Payment BEFORE update:', beforePayment);
+
+                // CRITICAL SAFETY CHECK: Verify payment is for current month
+                if (beforePayment.month !== this.currentMonth) {
+                    console.error('🚨 MONTH MISMATCH!', {
+                        paymentMonth: beforePayment.month,
+                        currentMonth: this.currentMonth,
+                        paymentId: paymentId
+                    });
+                    this.toast(`ERROR: Cannot update ${beforePayment.month} payment while viewing ${this.currentMonth}`, 'error');
+                    return;
                 }
 
                 // Set payment_date to today if marking as paid, null otherwise
@@ -3506,11 +3519,14 @@
 
                 this.showLoading();
                 try {
-                    console.log('📡 Updating Supabase with:', { status: newStatus, payment_date: paymentDate, paymentId });
-                    const { data, error, count } = await this.supabase
+                    console.log('📡 Updating Supabase with:', { status: newStatus, payment_date: paymentDate, paymentId, month: this.currentMonth });
+
+                    // DOUBLE SAFETY: Update only if ID matches AND month matches
+                    const { data, error } = await this.supabase
                         .from('monthly_payments')
                         .update({ status: newStatus, payment_date: paymentDate })
                         .eq('id', paymentId)
+                        .eq('month', this.currentMonth)  // SAFETY: Only update current month
                         .select();
 
                     if (error) {
@@ -3523,7 +3539,9 @@
                     console.log(`✅ Supabase update successful - ${affectedCount} record(s) updated`);
 
                     if (affectedCount === 0) {
-                        console.warn('⚠️ WARNING: No records were updated! Payment ID may not exist.');
+                        console.error('⚠️ WARNING: No records were updated! Payment may be from wrong month.');
+                        this.toast('No records updated - payment may be from different month', 'error');
+                        return;
                     } else if (affectedCount > 1) {
                         console.error(`🚨 CRITICAL: ${affectedCount} records were updated! This should only affect 1 record.`);
                         console.error('Updated records:', data);
@@ -3763,7 +3781,8 @@
                         await this.supabase
                             .from('monthly_payments')
                             .update({ status: 'paid', payment_date: today })
-                            .eq('id', payment.id);
+                            .eq('id', payment.id)
+                            .eq('month', this.currentMonth);  // SAFETY: Only update current month
                     }
 
                     this.clearCache();
@@ -3960,7 +3979,8 @@
                     const { error } = await this.supabase
                         .from('monthly_payments')
                         .update({ notes: newNotes.trim() })
-                        .eq('id', paymentId);
+                        .eq('id', paymentId)
+                        .eq('month', this.currentMonth);  // SAFETY: Only update current month
 
                     if (error) throw error;
 
@@ -3996,7 +4016,8 @@
                     const { error } = await this.supabase
                         .from('monthly_payments')
                         .update({ payment_date: newDate })
-                        .eq('id', paymentId);
+                        .eq('id', paymentId)
+                        .eq('month', this.currentMonth);  // SAFETY: Only update current month
 
                     if (error) throw error;
 
@@ -4207,7 +4228,8 @@
                             status: 'paid',
                             payment_date: today
                         })
-                        .eq('id', paymentId);
+                        .eq('id', paymentId)
+                        .eq('month', this.currentMonth);  // SAFETY: Only update current month
 
                     if (error) throw error;
 
@@ -4314,7 +4336,8 @@
                                 status: 'paid',
                                 payment_date: today
                             })
-                            .eq('id', paymentId);
+                            .eq('id', paymentId)
+                            .eq('month', this.currentMonth);  // SAFETY: Only update current month
                     }
 
                     this.clearCache();
