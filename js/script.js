@@ -562,10 +562,12 @@
                 ).join('');
             }
 
-            setCurrentMonth(month) {
+            async setCurrentMonth(month) {
                 this.currentMonth = month;
                 this.clearCache();
-                this.refreshData();
+                await this.refreshData();
+                // Re-render the current tab to show the new month's data
+                this.renderTabContent(this.currentTab);
                 this.toast('Month changed to ' + month, 'info');
             }
 
@@ -594,6 +596,8 @@
             async refreshData() {
                 this.clearCache();
                 await this.loadInitialData();
+                // Re-render the current tab to show updated data
+                this.renderTabContent(this.currentTab);
             }
 
             clearCache() {
