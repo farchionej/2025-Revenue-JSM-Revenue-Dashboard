@@ -563,9 +563,17 @@
             }
 
             async setCurrentMonth(month) {
+                console.log('═══════════════════════════════════════');
+                console.log('📅 MONTH CHANGE');
+                console.log('From:', this.currentMonth);
+                console.log('To:', month);
+                console.log('═══════════════════════════════════════');
+
                 this.currentMonth = month;
                 // Re-render the current tab to show the new month's data
                 await this.renderTabContent(this.currentTab);
+
+                console.log('✅ Month change complete, now viewing:', this.currentMonth);
                 this.toast('Month changed to ' + month, 'info');
             }
 
@@ -3484,12 +3492,17 @@
             }
 
             async togglePaymentStatus(paymentId, newStatus) {
-                console.log('🔍 togglePaymentStatus called with:', { paymentId, newStatus, currentMonth: this.currentMonth });
+                console.log('═══════════════════════════════════════');
+                console.log('🔍 TOGGLE PAYMENT STATUS CALLED');
+                console.log('Payment ID:', paymentId);
+                console.log('New Status:', newStatus);
+                console.log('Current Month (Dashboard.currentMonth):', this.currentMonth);
+                console.log('═══════════════════════════════════════');
 
                 // SAFETY CHECK: Get payment details and verify it's for current month
                 const { data: beforePayment, error: fetchError } = await this.supabase
                     .from('monthly_payments')
-                    .select('id, client_id, month, status, amount')
+                    .select('id, client_id, month, status, amount, clients(name)')
                     .eq('id', paymentId)
                     .single();
 
@@ -3499,18 +3512,29 @@
                     return;
                 }
 
-                console.log('📋 Payment BEFORE update:', beforePayment);
+                console.log('📋 Payment BEFORE update:');
+                console.log('  - Payment ID:', beforePayment.id);
+                console.log('  - Client:', beforePayment.clients?.name);
+                console.log('  - Month:', beforePayment.month);
+                console.log('  - Current Status:', beforePayment.status);
+                console.log('  - Will change to:', newStatus);
 
                 // CRITICAL SAFETY CHECK: Verify payment is for current month
                 if (beforePayment.month !== this.currentMonth) {
-                    console.error('🚨 MONTH MISMATCH!', {
-                        paymentMonth: beforePayment.month,
-                        currentMonth: this.currentMonth,
-                        paymentId: paymentId
-                    });
+                    console.error('═══════════════════════════════════════');
+                    console.error('🚨🚨🚨 MONTH MISMATCH DETECTED 🚨🚨🚨');
+                    console.error('═══════════════════════════════════════');
+                    console.error('Payment Month:', beforePayment.month);
+                    console.error('Current Month:', this.currentMonth);
+                    console.error('Payment ID:', paymentId);
+                    console.error('Client:', beforePayment.clients?.name);
+                    console.error('═══════════════════════════════════════');
+                    alert(`MONTH MISMATCH!\n\nYou are viewing: ${this.currentMonth}\nBut trying to update: ${beforePayment.month}\n\nThis update will be BLOCKED.`);
                     this.toast(`ERROR: Cannot update ${beforePayment.month} payment while viewing ${this.currentMonth}`, 'error');
                     return;
                 }
+
+                console.log('✅ Month check passed - payment is for current month');
 
                 // Set payment_date to today if marking as paid, null otherwise
                 const paymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
@@ -3536,17 +3560,27 @@
 
                     // Log how many records were affected
                     const affectedCount = data ? data.length : 0;
-                    console.log(`✅ Supabase update successful - ${affectedCount} record(s) updated`);
+                    console.log('═══════════════════════════════════════');
+                    console.log('📊 UPDATE RESULT');
+                    console.log('Records affected:', affectedCount);
+                    if (data && data.length > 0) {
+                        console.log('Updated payment(s):');
+                        data.forEach(p => {
+                            console.log(`  - ID: ${p.id}, Month: ${p.month}, Status: ${p.status}`);
+                        });
+                    }
+                    console.log('═══════════════════════════════════════');
 
                     if (affectedCount === 0) {
-                        console.error('⚠️ WARNING: No records were updated! Payment may be from wrong month.');
+                        console.error('⚠️ WARNING: No records were updated!');
+                        console.error('This means the payment ID + month combination did not match any record.');
                         this.toast('No records updated - payment may be from different month', 'error');
                         return;
                     } else if (affectedCount > 1) {
                         console.error(`🚨 CRITICAL: ${affectedCount} records were updated! This should only affect 1 record.`);
                         console.error('Updated records:', data);
                     } else {
-                        console.log('✅ Exactly 1 record updated (correct):', data[0]);
+                        console.log('✅ Exactly 1 record updated (correct)');
                     }
 
                     await this.updateQuickStats();
