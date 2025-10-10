@@ -1006,7 +1006,7 @@
                 let activeClients = 0;
 
                 payments.forEach(payment => {
-                    if (payment.clients && payment.clients.status !== 'paused') {
+                    if (payment.clients && payment.clients.status === 'active') {
                         const amount = parseFloat(payment.clients.amount) || 0;
                         totalExpected += amount;
                         if (payment.status === 'paid') {
