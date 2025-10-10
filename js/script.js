@@ -1032,7 +1032,7 @@
                         <div class="stat-label">Total Expected</div>
                         <div class="stat-value">$${totalExpected.toLocaleString()}</div>
                         <div class="stat-change">
-                            ${activeClients} active clients
+                            ${activeClients} active clients, ${clients.length} total restaurants
                         </div>
                     </div>
 
@@ -1044,11 +1044,11 @@
                         </div>
                     </div>
 
-                    <div class="stat-card clickable" onclick="Dashboard.showTab('clientpayment')">
-                        <div class="stat-label">Total Restaurants</div>
-                        <div class="stat-value">${clients.length}</div>
+                    <div class="stat-card clickable" onclick="Dashboard.showTab('analytics')">
+                        <div class="stat-label">Annual Recurring Revenue (ARR)</div>
+                        <div class="stat-value">$${(totalExpected * 12).toLocaleString()}</div>
                         <div class="stat-change">
-                            ${clients.filter(c => c.status === 'paused').length} paused
+                            12-month forecast
                         </div>
                     </div>
                 `;
