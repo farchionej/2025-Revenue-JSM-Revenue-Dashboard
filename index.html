@@ -1169,17 +1169,27 @@
                                 </div>
                             </td>
                             <td>
-                                <div class="editable-cell" onclick="Dashboard.actions.editNotes(${payment.id})">
-                                    ${payment.notes ? `
-                                        <div style="font-size: 0.9em; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
-                                            ${payment.notes}
-                                        </div>
-                                    ` : `
-                                        <div style="color: var(--secondary-gray); font-style: italic;">
-                                            Click to add notes
-                                        </div>
-                                    `}
-                                    <div class="edit-indicator">Edit</div>
+                                <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+                                    <div class="editable-cell"
+                                         onclick="Dashboard.actions.editNotes(${payment.id})"
+                                         style="flex: 1; min-width: 0;">
+                                        ${payment.notes ? `
+                                            <div style="font-size: 0.9em; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                ${payment.notes}
+                                            </div>
+                                        ` : `
+                                            <div style="color: var(--secondary-gray); font-style: italic; font-size: 0.85em;">
+                                                Click to add notes
+                                            </div>
+                                        `}
+                                        <div class="edit-indicator">Edit</div>
+                                    </div>
+                                    <button class="table-action-btn"
+                                            onclick="Dashboard.actions.editNotes(${payment.id}); event.stopPropagation();"
+                                            title="Add/Edit notes"
+                                            style="flex-shrink: 0;">
+                                        ${payment.notes ? '✏️' : '➕'}
+                                    </button>
                                 </div>
                             </td>
                             <td>
@@ -3087,28 +3097,124 @@
                 const payment = payments.find(p => p.id === paymentId);
                 if (!payment) return;
 
-                const newNotes = prompt('Enter payment notes:', payment.notes || '');
-                if (newNotes === null) return;
+                // Create a custom modal for better UX
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                `;
 
-                this.showLoading();
-                try {
-                    const { error } = await this.supabase
-                        .from('monthly_payments')
-                        .update({ notes: newNotes.trim() })
-                        .eq('id', paymentId);
+                const modalContent = document.createElement('div');
+                modalContent.style.cssText = `
+                    background: var(--surface-bg, white);
+                    padding: 24px;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                    max-width: 500px;
+                    width: 90%;
+                `;
 
-                    if (error) throw error;
+                const clientName = payment.clients?.name || 'Client';
 
-                    this.clearCache();
-                    await this.loadPayments();
-                    this.renderTabContent(this.currentTab);
-                    this.toast('Notes updated successfully', 'success');
-                } catch (error) {
-                    this.toast('Failed to update notes', 'error');
-                    console.error('Error updating notes:', error);
-                } finally {
-                    this.hideLoading();
-                }
+                modalContent.innerHTML = `
+                    <h3 style="margin: 0 0 16px 0; color: var(--primary-text);">Payment Notes - ${clientName}</h3>
+                    <textarea id="notesInput"
+                        style="width: 100%;
+                               min-height: 120px;
+                               padding: 12px;
+                               border: 2px solid var(--border-color, #e0e0e0);
+                               border-radius: 8px;
+                               font-family: inherit;
+                               font-size: 14px;
+                               resize: vertical;
+                               margin-bottom: 16px;
+                               box-sizing: border-box;"
+                        placeholder="Enter payment notes here...">${payment.notes || ''}</textarea>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button id="cancelBtn"
+                            style="padding: 10px 20px;
+                                   border: none;
+                                   border-radius: 6px;
+                                   cursor: pointer;
+                                   font-size: 14px;
+                                   background: var(--secondary-gray, #e0e0e0);
+                                   color: var(--primary-text, #333);">
+                            Cancel
+                        </button>
+                        <button id="saveBtn"
+                            style="padding: 10px 20px;
+                                   border: none;
+                                   border-radius: 6px;
+                                   cursor: pointer;
+                                   font-size: 14px;
+                                   background: var(--primary-blue, #4A90E2);
+                                   color: white;">
+                            Save Notes
+                        </button>
+                    </div>
+                `;
+
+                modal.appendChild(modalContent);
+                document.body.appendChild(modal);
+
+                const notesInput = document.getElementById('notesInput');
+                const saveBtn = document.getElementById('saveBtn');
+                const cancelBtn = document.getElementById('cancelBtn');
+
+                // Focus and select text
+                notesInput.focus();
+                notesInput.setSelectionRange(notesInput.value.length, notesInput.value.length);
+
+                const closeModal = () => {
+                    document.body.removeChild(modal);
+                };
+
+                cancelBtn.onclick = closeModal;
+                modal.onclick = (e) => {
+                    if (e.target === modal) closeModal();
+                };
+
+                // Save on Enter with Ctrl/Cmd
+                notesInput.onkeydown = (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                        saveBtn.click();
+                    }
+                    if (e.key === 'Escape') {
+                        closeModal();
+                    }
+                };
+
+                saveBtn.onclick = async () => {
+                    const newNotes = notesInput.value.trim();
+                    closeModal();
+                    this.showLoading();
+                    try {
+                        const { error } = await this.supabase
+                            .from('monthly_payments')
+                            .update({ notes: newNotes })
+                            .eq('id', paymentId);
+
+                        if (error) throw error;
+
+                        this.clearCache();
+                        await this.loadPayments();
+                        this.renderTabContent(this.currentTab);
+                        this.toast('Notes updated successfully', 'success');
+                    } catch (error) {
+                        this.toast('Failed to update notes', 'error');
+                        console.error('Error updating notes:', error);
+                    } finally {
+                        this.hideLoading();
+                    }
+                };
             }
 
             async editPaymentDate(paymentId) {
