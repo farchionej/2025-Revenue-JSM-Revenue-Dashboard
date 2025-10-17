@@ -1060,7 +1060,7 @@
                         <div class="stat-label">Annual Recurring Revenue (ARR)</div>
                         <div class="stat-value">$${(totalExpected * 12).toLocaleString()}</div>
                         <div class="stat-change">
-                            12-month forecast
+                            Based on ${new Date(this.currentMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (MRR × 12)
                         </div>
                     </div>
                 `;
@@ -1487,11 +1487,60 @@
                                 </tbody>
                                 <tfoot>
                                     <tr style="background: var(--light-gray); font-weight: 600; border-top: 2px solid var(--border-gray);">
-                                        <td style="padding: 16px;">Total Active Clients (${activeClients.length})</td>
+                                        <td style="padding: 16px;">Total Active Clients</td>
+                                        <td style="padding: 16px; color: var(--primary-text); font-size: 1.1em;">
+                                            ${activeClients.length}
+                                        </td>
+                                        <td colspan="5"></td>
+                                    </tr>
+                                    <tr style="background: var(--light-gray); font-weight: 600;">
+                                        <td style="padding: 16px;">Monthly Recurring Revenue (MRR)</td>
                                         <td style="padding: 16px; color: var(--success-green); font-size: 1.1em;">
                                             $${activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString()}
                                         </td>
                                         <td colspan="5"></td>
+                                    </tr>
+                                    <tr style="background: var(--light-gray); font-weight: 600;">
+                                        <td style="padding: 16px;">Annual Recurring Revenue (ARR)</td>
+                                        <td style="padding: 16px; color: var(--chart-purple-main); font-size: 1.1em;">
+                                            $${(activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0) * 12).toLocaleString()}
+                                        </td>
+                                        <td colspan="5" style="padding: 16px; font-size: 0.85em; color: var(--secondary-text);">Based on current active clients (MRR × 12)</td>
+                                    </tr>
+                                    <tr style="background: var(--light-gray); font-weight: 600;">
+                                        <td style="padding: 16px;">${monthName} Total Expected</td>
+                                        <td style="padding: 16px; color: var(--primary-text); font-size: 1.1em;">
+                                            $${activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString()}
+                                        </td>
+                                        <td colspan="5"></td>
+                                    </tr>
+                                    <tr style="background: var(--light-gray); font-weight: 600;">
+                                        <td style="padding: 16px;">${monthName} Total Collected</td>
+                                        <td style="padding: 16px; color: var(--success-green); font-size: 1.1em;">
+                                            $${activePayments.filter(p => p.status === 'paid')
+                                                .reduce((sum, p) => {
+                                                    const client = clients.find(c => c.id === p.client_id);
+                                                    return sum + (parseFloat(client?.amount) || 0);
+                                                }, 0).toLocaleString()}
+                                        </td>
+                                        <td colspan="5"></td>
+                                    </tr>
+                                    <tr style="background: var(--light-gray); font-weight: 600; border-bottom: 2px solid var(--border-gray);">
+                                        <td style="padding: 16px;">${monthName} Collection Rate</td>
+                                        <td style="padding: 16px; font-size: 1.1em;">
+                                            ${(() => {
+                                                const expected = activeClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+                                                const collected = activePayments.filter(p => p.status === 'paid')
+                                                    .reduce((sum, p) => {
+                                                        const client = clients.find(c => c.id === p.client_id);
+                                                        return sum + (parseFloat(client?.amount) || 0);
+                                                    }, 0);
+                                                const rate = expected > 0 ? (collected / expected * 100) : 0;
+                                                const color = rate >= 90 ? 'var(--success-green)' : rate >= 75 ? 'var(--warning-gray)' : 'var(--error-red)';
+                                                return `<span style="color: ${color};">${rate.toFixed(1)}%</span>`;
+                                            })()}
+                                        </td>
+                                        <td colspan="5" style="padding: 16px; font-size: 0.85em; color: var(--secondary-text);">Target: 90%+</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -2291,25 +2340,41 @@
                     ['2025-06', 14510],
                     ['2025-07', 15210],
                     ['2025-08', 16310],
-                    ['2025-09', 17210]
+                    ['2025-09', 17210],
+                    ['2025-10', 17510]  // October 2025
                 ]);
 
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
                 const chronologicalData = monthlyData.slice().reverse();
 
-                // Include current month if not in monthlyData
+                // Include current month and next 2 months for planning (if not in monthlyData)
                 const currentMonth = new Date().toISOString().slice(0, 7);
-                const hasCurrentMonth = chronologicalData.some(record => record.month === currentMonth);
+                const currentDate = new Date();
 
+                // Add current month if missing
+                const hasCurrentMonth = chronologicalData.some(record => record.month === currentMonth);
                 if (!hasCurrentMonth && chronologicalData.length > 0) {
-                    // Add current month with basic structure
                     chronologicalData.push({
                         month: currentMonth,
                         costs: 0
                     });
                 }
 
-                for (const monthRecord of chronologicalData.slice(-24)) { // Last 24 months for better trend analysis
+                // Add next 2 future months for revenue planning
+                for (let i = 1; i <= 2; i++) {
+                    const futureDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
+                    const futureMonth = futureDate.toISOString().slice(0, 7);
+                    const hasFutureMonth = chronologicalData.some(record => record.month === futureMonth);
+
+                    if (!hasFutureMonth) {
+                        chronologicalData.push({
+                            month: futureMonth,
+                            costs: 0
+                        });
+                    }
+                }
+
+                for (const monthRecord of chronologicalData.slice(-26)) { // Last 24 months + 2 future months
                     const month = monthRecord.month;
                     const monthDate = new Date(month + '-01');
 
@@ -5845,7 +5910,8 @@
                     ['2025-06', 14510],
                     ['2025-07', 15210],
                     ['2025-08', 16310],
-                    ['2025-09', 17210]
+                    ['2025-09', 17210],
+                    ['2025-10', 17510]  // October 2025
                 ]);
 
                 // Calculate historical revenue progression based on client acquisition and growth
@@ -5909,26 +5975,32 @@
                     }
                 });
 
-                // Generate last 18 months with actual historical revenue data
+                // Generate last 18 months + 2 future months (total 20 months for planning)
                 const currentMonthStr = currentDate.toISOString().slice(0, 7); // Current month in YYYY-MM format
 
-                for (let i = 17; i >= 0; i--) {
+                for (let i = 17; i >= -2; i--) {  // Changed from i >= 0 to i >= -2 to include 2 future months
                     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
                     const monthStr = date.toISOString().slice(0, 7); // YYYY-MM format
                     const displayMonth = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 
                     let monthlyRevenue = 0;
 
-                    // Use actual historical data if available, otherwise calculate dynamically for current month
+                    // Use actual historical data if available
                     if (actualRevenueData.has(monthStr)) {
                         monthlyRevenue = actualRevenueData.get(monthStr);
                         console.log(`Using actual revenue for ${monthStr}: $${monthlyRevenue}`);
-                    } else if (monthStr === currentMonthStr) {
-                        // DYNAMIC CALCULATION: Use real-time active client data for current month
+                    } else if (monthStr >= currentMonthStr) {
+                        // DYNAMIC CALCULATION: For current and future months, calculate from active clients
+                        // Only include clients that have started by this month
+                        const monthDate = new Date(monthStr + '-01');
                         monthlyRevenue = activeClients.reduce((sum, client) => {
-                            return sum + (parseFloat(client.amount) || 0);
+                            const clientStart = new Date(client.start_date || '2024-01-01');
+                            if (clientStart <= monthDate) {
+                                return sum + (parseFloat(client.amount) || 0);
+                            }
+                            return sum;
                         }, 0);
-                        console.log(`Dynamic calculation for ${monthStr}: $${monthlyRevenue} from ${activeClients.length} active clients`);
+                        console.log(`Dynamic calculation for ${monthStr}: $${monthlyRevenue} from active clients`);
                     }
 
                     monthsData.push({
