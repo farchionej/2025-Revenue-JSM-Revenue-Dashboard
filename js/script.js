@@ -2341,7 +2341,9 @@
                     ['2025-07', 15210],
                     ['2025-08', 16310],
                     ['2025-09', 17210],
-                    ['2025-10', 17510]  // October 2025
+                    ['2025-10', 17510],  // October 2025
+                    ['2025-11', 17510],  // November 2025 - aligned with October
+                    ['2025-12', 17510]   // December 2025 - aligned with October
                 ]);
 
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
@@ -5915,7 +5917,9 @@
                     ['2025-07', 15210],
                     ['2025-08', 16310],
                     ['2025-09', 17210],
-                    ['2025-10', 17510]  // October 2025
+                    ['2025-10', 17510],  // October 2025
+                    ['2025-11', 17510],  // November 2025 - aligned with October
+                    ['2025-12', 17510]   // December 2025 - aligned with October
                 ]);
 
                 // Calculate historical revenue progression based on client acquisition and growth
@@ -6720,7 +6724,71 @@
                             }
                         };
 
+                        window.syncMonthlyData = async () => {
+                            if (!Dashboard || !Dashboard.supabase) {
+                                console.error('Dashboard not ready');
+                                return;
+                            }
+
+                            console.log('🔍 Checking monthly_data table for Oct/Nov/Dec 2025...');
+
+                            const monthsToSync = [
+                                { month: '2025-10', costs: 0 },
+                                { month: '2025-11', costs: 0 },
+                                { month: '2025-12', costs: 0 }
+                            ];
+
+                            try {
+                                // Check what exists
+                                const { data: existing, error: selectError } = await Dashboard.supabase
+                                    .from('monthly_data')
+                                    .select('*')
+                                    .in('month', ['2025-10', '2025-11', '2025-12']);
+
+                                if (selectError) throw selectError;
+
+                                console.log('📊 Existing records:', existing);
+
+                                const existingMonths = new Set((existing || []).map(r => r.month));
+                                const toInsert = monthsToSync.filter(m => !existingMonths.has(m.month));
+                                const toUpdate = monthsToSync.filter(m => existingMonths.has(m.month));
+
+                                // Insert missing months
+                                if (toInsert.length > 0) {
+                                    console.log('➕ Inserting:', toInsert);
+                                    const { data: inserted, error: insertError } = await Dashboard.supabase
+                                        .from('monthly_data')
+                                        .insert(toInsert)
+                                        .select();
+
+                                    if (insertError) throw insertError;
+                                    console.log('✅ Inserted:', inserted);
+                                }
+
+                                // Update existing months (if needed)
+                                if (toUpdate.length > 0) {
+                                    console.log('🔄 Existing months found:', toUpdate.map(m => m.month));
+                                    console.log('   No updates needed - costs already set to 0');
+                                }
+
+                                console.log('✅ Monthly data sync complete!');
+                                console.log('📝 Summary:');
+                                console.log(`   - Oct 2025: ${existingMonths.has('2025-10') ? 'EXISTS' : 'CREATED'}`);
+                                console.log(`   - Nov 2025: ${existingMonths.has('2025-11') ? 'EXISTS' : 'CREATED'}`);
+                                console.log(`   - Dec 2025: ${existingMonths.has('2025-12') ? 'EXISTS' : 'CREATED'}`);
+
+                                Dashboard.toast('Monthly data synced!', 'success');
+                                Dashboard.clearCache();
+                                await Dashboard.refreshData();
+
+                            } catch (error) {
+                                console.error('❌ Error syncing monthly data:', error);
+                                Dashboard.toast('Error syncing data', 'error');
+                            }
+                        };
+
                         console.log('💡 TIPS:');
+                        console.log('  - Run syncMonthlyData() to sync Oct/Nov/Dec 2025 in database');
                         console.log('  - Run populateFutureMonths() to setup October 2025 and future months');
                         console.log('  - Run detectDuplicates() to find and clean duplicate payment records');
                         console.log('  - Run forceRefresh() to clear cache and reload all data');
