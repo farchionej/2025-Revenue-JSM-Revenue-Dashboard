@@ -1375,17 +1375,15 @@
                     }
                 });
 
-                // Filter out churned clients for months after they churned
-                const displayClients = clients.filter(c => {
-                    if (c.status !== 'churned') return true; // Show all non-churned
-                    if (!c.churn_date) return true; // Show if no churn date set (legacy data)
-                    return c.churn_date >= this.currentMonth; // Only show if churned in/after current month
-                });
+                // Don't filter churned clients here - let the filter buttons control visibility
+                // This allows us to show churned clients only when "Churned" filter is clicked
+                const displayClients = clients;
 
-                // Calculate filter counts (using filtered clients)
-                const activeClients = displayClients.filter(c => c.status === 'active');
-                const pausedClients = displayClients.filter(c => c.status === 'paused');
-                const hiddenClients = displayClients.filter(c => c.status === 'hidden');
+                // Calculate filter counts (from all clients)
+                const activeClients = clients.filter(c => c.status === 'active');
+                const pausedClients = clients.filter(c => c.status === 'paused');
+                const hiddenClients = clients.filter(c => c.status === 'hidden');
+                const churnedClients = clients.filter(c => c.status === 'churned');
 
                 // Payment status counts (only for active clients)
                 const activePayments = activeClients.map(client => paymentMap.get(client.id)).filter(Boolean);
@@ -1437,6 +1435,11 @@
                                             Hidden <span class="filter-count">${hiddenClients.length}</span>
                                         </button>
                                     ` : ''}
+                                    ${churnedClients.length > 0 ? `
+                                        <button class="filter-btn" onclick="Dashboard.filterClientPayments('churned')">
+                                            Churned <span class="filter-count">${churnedClients.length}</span>
+                                        </button>
+                                    ` : ''}
                                 </div>
                             </div>
 
@@ -1484,7 +1487,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="clientPaymentTableBody">
-                                    ${this.renderUnifiedClientPaymentRows(displayClients, paymentMap)}
+                                    ${this.renderUnifiedClientPaymentRows(displayClients.filter(c => c.status !== 'churned'), paymentMap)}
                                 </tbody>
                                 <tfoot>
                                     <tr style="background: var(--light-gray); font-weight: 600; border-top: 2px solid var(--border-gray);">
@@ -3680,6 +3683,9 @@
                     await this.updateQuickStats();
                     await this.renderTabContent(this.currentTab);
 
+                    // Refresh all charts to reflect payment status change
+                    await this.refreshAllCharts();
+
                     this.toast(`Payment marked as ${newStatus}`, 'success');
                 } catch (error) {
                     this.toast('Failed to update payment status', 'error');
@@ -3812,6 +3818,9 @@
                     await this.updateQuickStats();
                     await this.renderTabContent(this.currentTab);
 
+                    // Refresh all charts to reflect status change
+                    await this.refreshAllCharts();
+
                     this.toast(`${client.name} status changed to ${newStatus}`, 'success');
                 } catch (error) {
                     this.toast('Failed to update client status', 'error');
@@ -3888,6 +3897,9 @@
                     await this.loadPayments();
                     await this.updateQuickStats();
                     await this.renderTabContent(this.currentTab);
+
+                    // Refresh all charts to reflect deleted client
+                    await this.refreshAllCharts();
 
                     this.toast(`${displayName} deleted successfully`, 'success');
                     console.log('✅ Client deleted successfully');
@@ -4345,6 +4357,9 @@
                     await this.loadPayments();
                     await this.updateQuickStats();
 
+                    // Refresh all charts to reflect amount change
+                    await this.refreshAllCharts();
+
                     this.toast(`Amount updated to $${newAmount.toLocaleString()} for ${this.currentMonth} and all future months`, 'success');
                 } catch (error) {
                     this.toast('Failed to update amount', 'error');
@@ -4608,6 +4623,9 @@
                     this.clearCache();
                     await this.loadClients();
                     await this.renderTabContent(this.currentTab);
+
+                    // Refresh all charts to reflect new client data
+                    await this.refreshAllCharts();
 
                     this.toast(`Client "${name}" added successfully!`, 'success');
                 } catch (error) {
@@ -4902,26 +4920,25 @@
                     }
                 });
 
-                // Filter out churned clients for months after they churned
-                const displayClients = clients.filter(c => {
-                    if (c.status !== 'churned') return true; // Show all non-churned
-                    if (!c.churn_date) return true; // Show if no churn date set (legacy data)
-                    return c.churn_date >= this.currentMonth; // Only show if churned in/after current month
-                });
+                // Don't auto-filter churned - let the filter button control visibility
+                const displayClients = clients;
 
                 let filteredClients = [];
 
                 if (filter === 'all') {
-                    // Show only active clients
+                    // Show only active clients (exclude churned)
                     filteredClients = displayClients.filter(c => c.status === 'active');
                 } else if (filter === 'paused') {
-                    // Show paused clients
+                    // Show paused clients only
                     filteredClients = displayClients.filter(c => c.status === 'paused');
                 } else if (filter === 'hidden') {
-                    // Show hidden clients
+                    // Show hidden clients only
                     filteredClients = displayClients.filter(c => c.status === 'hidden');
+                } else if (filter === 'churned') {
+                    // Show ONLY churned clients
+                    filteredClients = displayClients.filter(c => c.status === 'churned');
                 } else if (filter === 'paid' || filter === 'unpaid') {
-                    // Show only active clients with specified payment status
+                    // Show only active clients with specified payment status (exclude churned)
                     filteredClients = displayClients.filter(c => {
                         if (c.status !== 'active') return false;
                         const payment = paymentMap.get(c.id);
@@ -5059,8 +5076,8 @@
                             return direction === 'asc' ? aValue - bValue : bValue - aValue;
 
                         case 'clientStatus':
-                            // Custom status priority: active > paused > hidden
-                            const statusPriority = { 'active': 3, 'paused': 2, 'hidden': 1 };
+                            // Custom status priority: active > paused > hidden > churned
+                            const statusPriority = { 'active': 4, 'paused': 3, 'hidden': 2, 'churned': 1 };
                             aValue = statusPriority[a.status] || 0;
                             bValue = statusPriority[b.status] || 0;
                             return direction === 'asc' ? aValue - bValue : bValue - aValue;
@@ -5967,6 +5984,50 @@
 
                 } catch (error) {
                     console.error('Error rendering overview charts:', error);
+                }
+            }
+
+            async refreshAllCharts() {
+                console.log('🔄 Refreshing all charts across all tabs...');
+
+                try {
+                    // Destroy existing chart instances to prevent memory leaks
+                    if (this.charts) {
+                        Object.values(this.charts).forEach(chart => {
+                            if (chart && typeof chart.destroy === 'function') {
+                                chart.destroy();
+                            }
+                        });
+                    }
+
+                    // Invalidate analytics cache so it recalculates on next render
+                    this.analyticsData = null;
+
+                    // Refresh Overview charts if that tab has been rendered
+                    const overviewChart = document.getElementById('overviewMonthlyRevenueChart');
+                    if (overviewChart) {
+                        console.log('📊 Refreshing Overview charts...');
+                        await this.renderOverviewCharts();
+                    }
+
+                    // Refresh Analytics charts if that tab has been rendered
+                    const analyticsSection = document.getElementById('analyticsSection');
+                    if (analyticsSection) {
+                        console.log('📈 Refreshing Analytics charts...');
+                        // Only re-render if user is on analytics tab to avoid DOM conflicts
+                        if (this.currentTab === 'analytics') {
+                            const contentDiv = document.getElementById('tabContent');
+                            if (contentDiv) {
+                                this.showLoading();
+                                contentDiv.innerHTML = await this.renderAnalytics();
+                                this.hideLoading();
+                            }
+                        }
+                    }
+
+                    console.log('✅ All charts refreshed successfully');
+                } catch (error) {
+                    console.error('Error refreshing charts:', error);
                 }
             }
 
