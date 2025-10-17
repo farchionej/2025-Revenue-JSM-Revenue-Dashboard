@@ -4501,7 +4501,7 @@
                                 </div>
                                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                                     <button type="submit" class="btn primary">Add Client</button>
-                                    <button type="button" onclick="Dashboard.closeModal()" class="btn secondary">Cancel</button>
+                                    <button type="button" id="cancelClientBtn" class="btn secondary">Cancel</button>
                                 </div>
                             </form>
                         </div>
@@ -4512,14 +4512,36 @@
 
                 const modal = document.getElementById('clientModal');
                 const form = document.getElementById('clientForm');
+                const cancelBtn = document.getElementById('cancelClientBtn');
 
                 // Set default start date to today
                 document.getElementById('clientStartDate').value = new Date().toISOString().split('T')[0];
 
-                // Handle form submission
+                // Handle form submission with validation
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
+
+                    // Check form validity
+                    if (!form.checkValidity()) {
+                        this.toast('Please fill in all required fields', 'error');
+                        return;
+                    }
+
                     await this.submitNewClient();
+                });
+
+                // Handle cancel button click
+                cancelBtn.addEventListener('click', () => {
+                    console.log('Cancel button clicked');
+                    this.closeModal();
+                });
+
+                // Handle click outside modal to close
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        console.log('Clicked outside modal');
+                        this.closeModal();
+                    }
                 });
 
                 // Show modal with animation
@@ -4560,11 +4582,19 @@
             }
 
             closeModal() {
-                const modal = document.querySelector('.modal.show');
-                if (modal) {
+                console.log('closeModal() called');
+                // Find ALL modals (with or without .show class)
+                const modals = document.querySelectorAll('.modal');
+                console.log(`Found ${modals.length} modal(s) to close`);
+
+                modals.forEach((modal, index) => {
+                    console.log(`Closing modal ${index + 1}`);
                     modal.classList.remove('show');
-                    setTimeout(() => modal.remove(), 300);
-                }
+                    setTimeout(() => {
+                        modal.remove();
+                        console.log(`Modal ${index + 1} removed from DOM`);
+                    }, 300);
+                });
             }
 
             // =============================================================================
@@ -6679,7 +6709,8 @@
                     console.log('Chart.js loaded, initializing dashboard...');
                     try {
                         Dashboard = new DashboardCore();
-                        console.log('✅ Dashboard created successfully:', Dashboard);
+                        window.Dashboard = Dashboard; // Make Dashboard globally accessible
+                        console.log('✅ Dashboard created successfully and attached to window:', Dashboard);
 
                         // Add global helper functions
                         window.populateFutureMonths = () => {

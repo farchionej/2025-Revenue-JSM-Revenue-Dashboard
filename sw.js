@@ -1,5 +1,5 @@
 // Service Worker for JSM Revenue Dashboard
-const CACHE_NAME = 'jsm-dashboard-v6';
+const CACHE_NAME = 'jsm-dashboard-v7';
 const urlsToCache = [
   '/',
   '/index.html',
