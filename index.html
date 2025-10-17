@@ -470,6 +470,18 @@
                     options.push({ value, label });
                 }
 
+                // Add November 2025 if not already included
+                const nov2025 = '2025-11';
+                if (!options.find(opt => opt.value === nov2025)) {
+                    options.unshift({ value: nov2025, label: 'November 2025' });
+                }
+
+                // Add December 2025 if not already included
+                const dec2025 = '2025-12';
+                if (!options.find(opt => opt.value === dec2025)) {
+                    options.unshift({ value: dec2025, label: 'December 2025' });
+                }
+
                 selector.innerHTML = options.map(opt =>
                     `<option value="${opt.value}" ${opt.value === this.currentMonth ? 'selected' : ''}>${opt.label}</option>`
                 ).join('');
