@@ -1480,6 +1480,7 @@
                                         <th class="sortable" onclick="Dashboard.sortClientPayments('paymentDate')">Payment Date</th>
                                         <th>Notes</th>
                                         <th>Lifetime Value</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="clientPaymentTableBody">
@@ -1641,6 +1642,16 @@
                             </td>
                             <td>
                                 <span id="${lifetimeValueId}" style="color: var(--secondary-text);">Calculating...</span>
+                            </td>
+                            <td style="text-align: center;">
+                                <button class="btn-icon danger"
+                                        onclick="Dashboard.actions.deleteClient('${client.id}', '${client.name.replace(/'/g, "\\'")}'); event.stopPropagation();"
+                                        title="Delete ${client.name}"
+                                        style="background: none; border: none; cursor: pointer; font-size: 1.2em; color: var(--error-red); padding: 4px 8px; transition: transform 0.2s;"
+                                        onmouseover="this.style.transform='scale(1.2)'"
+                                        onmouseout="this.style.transform='scale(1)'">
+                                    🗑️
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -3547,7 +3558,7 @@
                 return {
                     addClient: () => this.showAddClientModal(),
                     editClient: (id) => this.toast('Edit client functionality coming soon', 'info'),
-                    deleteClient: (id) => this.deleteClient(id),
+                    deleteClient: (id, name) => this.deleteClient(id, name),
                     editClientAmount: (clientId, currentAmount) => this.editClientAmount(clientId, currentAmount),
                     startInlineAmountEdit: (element) => this.startInlineAmountEdit(element),
                     toggleClientStatus: (id, currentStatus) => this.toggleClientStatus(id, currentStatus),
@@ -3810,38 +3821,48 @@
                 }
             }
 
-            async deleteClient(clientId) {
-                console.log('🗑️ Deleting client:', clientId);
+            async deleteClient(clientId, clientName = null) {
+                console.log('🗑️ Deleting client:', clientId, 'Name:', clientName);
 
-                // Get client info for confirmation
-                const clients = await this.loadClients();
-                console.log('Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
-                console.log('Looking for client ID:', clientId);
+                // If name provided, use it directly for confirmation
+                // Otherwise fetch client info
+                let displayName = clientName;
 
-                // Try different ID matching approaches
-                let client = clients.find(c => c.id === clientId);
+                if (!displayName) {
+                    const clients = await this.loadClients();
+                    console.log('Available clients:', clients.map(c => ({ id: c.id, name: c.name })));
+                    console.log('Looking for client ID:', clientId);
 
-                if (!client) {
-                    // Try string/number conversion
-                    client = clients.find(c => c.id == clientId); // loose equality
+                    // Try different ID matching approaches
+                    let client = clients.find(c => c.id === clientId);
+
+                    if (!client) {
+                        // Try string/number conversion
+                        client = clients.find(c => c.id == clientId); // loose equality
+                    }
+
+                    if (!client) {
+                        // Try other possible ID fields
+                        client = clients.find(c => c.client_id === clientId || c.client_id == clientId);
+                    }
+
+                    if (!client) {
+                        console.error('Client not found with any ID matching approach');
+                        console.error('Looking for ID:', clientId, 'Type:', typeof clientId);
+                        console.error('Available IDs:', clients.map(c => ({ id: c.id, type: typeof c.id, client_id: c.client_id })));
+                        this.toast(`Client not found. ID: ${clientId}`, 'error');
+                        return;
+                    }
+
+                    displayName = client.name;
                 }
 
-                if (!client) {
-                    // Try other possible ID fields
-                    client = clients.find(c => c.client_id === clientId || c.client_id == clientId);
-                }
+                const confirmMsg = `Delete ${displayName}?\n\nThis will permanently remove:\n• The client record\n• All associated payment history\n\nThis action cannot be undone.`;
 
-                if (!client) {
-                    console.error('Client not found with any ID matching approach');
-                    console.error('Looking for ID:', clientId, 'Type:', typeof clientId);
-                    console.error('Available IDs:', clients.map(c => ({ id: c.id, type: typeof c.id, client_id: c.client_id })));
-                    this.toast(`Client not found. ID: ${clientId}`, 'error');
+                if (!confirm(confirmMsg)) {
+                    console.log('Deletion cancelled by user');
                     return;
                 }
-
-                const confirmMsg = `Delete ${client.name}? This will permanently remove the client and all associated payment records. This action cannot be undone.`;
-
-                if (!confirm(confirmMsg)) return;
 
                 this.showLoading();
                 try {
@@ -3868,7 +3889,8 @@
                     await this.updateQuickStats();
                     await this.renderTabContent(this.currentTab);
 
-                    this.toast(`${client.name} deleted successfully`, 'success');
+                    this.toast(`${displayName} deleted successfully`, 'success');
+                    console.log('✅ Client deleted successfully');
                 } catch (error) {
                     this.toast('Failed to delete client', 'error');
                     console.error('Error deleting client:', error);
@@ -4549,13 +4571,17 @@
             }
 
             async submitNewClient() {
+                console.log('submitNewClient() called');
                 const name = document.getElementById('clientName').value;
                 const amount = parseFloat(document.getElementById('clientAmount').value);
                 const status = document.getElementById('clientStatus').value;
                 const startDate = document.getElementById('clientStartDate').value;
 
+                console.log('Client data:', { name, amount, status, startDate });
+
                 this.showLoading();
                 try {
+                    console.log('Inserting client into Supabase...');
                     const { error } = await this.supabase
                         .from('clients')
                         .insert({
@@ -4565,9 +4591,20 @@
                             start_date: startDate
                         });
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('Supabase error:', error);
+                        throw error;
+                    }
 
+                    console.log('Client inserted successfully');
+
+                    // CRITICAL: Close modal and hide loading FIRST, before data refresh
+                    console.log('Closing modal...');
                     this.closeModal();
+                    this.hideLoading();
+
+                    // Then refresh data in background
+                    console.log('Refreshing data...');
                     this.clearCache();
                     await this.loadClients();
                     await this.renderTabContent(this.currentTab);
@@ -4576,8 +4613,7 @@
                 } catch (error) {
                     this.toast('Failed to add client', 'error');
                     console.error('Error adding client:', error);
-                } finally {
-                    this.hideLoading();
+                    this.hideLoading(); // Make sure loading is hidden even on error
                 }
             }
 
@@ -4590,11 +4626,26 @@
                 modals.forEach((modal, index) => {
                     console.log(`Closing modal ${index + 1}`);
                     modal.classList.remove('show');
+
+                    // Immediate removal after animation
                     setTimeout(() => {
-                        modal.remove();
-                        console.log(`Modal ${index + 1} removed from DOM`);
+                        if (modal.parentNode) {
+                            modal.parentNode.removeChild(modal);
+                            console.log(`Modal ${index + 1} removed from DOM`);
+                        }
                     }, 300);
                 });
+
+                // Force immediate removal if animation fails (safety net)
+                setTimeout(() => {
+                    const remainingModals = document.querySelectorAll('.modal');
+                    if (remainingModals.length > 0) {
+                        console.warn(`Force removing ${remainingModals.length} remaining modal(s)`);
+                        remainingModals.forEach(m => {
+                            if (m.parentNode) m.parentNode.removeChild(m);
+                        });
+                    }
+                }, 350);
             }
 
             // =============================================================================
