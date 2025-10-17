@@ -2385,14 +2385,18 @@
                         console.log(`Using actual revenue data for ${month}: $${expectedRevenue}`);
                     } else {
                         // Calculate expected revenue for current/future months from active clients
+                        const includedClients = [];
                         clients.forEach(client => {
                             if (client.status === 'active') {
                                 const clientStart = new Date(client.start_date || '2024-01-01');
                                 if (clientStart <= monthDate) {
-                                    expectedRevenue += parseFloat(client.amount) || 0;
+                                    const amt = parseFloat(client.amount) || 0;
+                                    includedClients.push({ name: client.name, amount: amt, startDate: client.start_date });
+                                    expectedRevenue += amt;
                                 }
                             }
                         });
+                        console.log(`📊 Analytics: ${month} expected revenue $${expectedRevenue} from ${includedClients.length} clients:`, includedClients);
                     }
 
                     // Get actual payments for this month
@@ -5993,14 +5997,16 @@
                         // DYNAMIC CALCULATION: For current and future months, calculate from active clients
                         // Only include clients that have started by this month
                         const monthDate = new Date(monthStr + '-01');
+                        const includedClients = [];
                         monthlyRevenue = activeClients.reduce((sum, client) => {
                             const clientStart = new Date(client.start_date || '2024-01-01');
                             if (clientStart <= monthDate) {
+                                includedClients.push({ name: client.name, amount: parseFloat(client.amount) || 0, startDate: client.start_date });
                                 return sum + (parseFloat(client.amount) || 0);
                             }
                             return sum;
                         }, 0);
-                        console.log(`Dynamic calculation for ${monthStr}: $${monthlyRevenue} from active clients`);
+                        console.log(`📊 Dynamic calculation for ${monthStr}: $${monthlyRevenue} from ${includedClients.length} clients:`, includedClients);
                     }
 
                     monthsData.push({
