@@ -582,6 +582,10 @@
                 console.log('═══════════════════════════════════════');
 
                 this.currentMonth = month;
+
+                // Re-populate month selector to ensure UI is in sync
+                this.populateMonthSelector();
+
                 // Re-render the current tab to show the new month's data
                 await this.renderTabContent(this.currentTab);
 
@@ -754,6 +758,70 @@
                     return data;
                 } catch (error) {
                     console.error('Error creating payments for month:', error);
+                    throw error;
+                }
+            }
+
+            async createPaymentRecordsForNewClient(clientId, startDate, amount) {
+                // Create payment records for a newly added client
+                // Generates records from client's start_date through +12 months
+                console.log(`💳 Creating payment records for client ${clientId} from ${startDate} for $${amount}`);
+
+                try {
+                    const startDateObj = new Date(startDate);
+                    const startYear = startDateObj.getFullYear();
+                    const startMonth = startDateObj.getMonth(); // 0-based
+
+                    const monthsToCreate = [];
+
+                    // Generate 13 months starting from client's start date
+                    for (let i = 0; i < 13; i++) {
+                        const targetDate = new Date(startYear, startMonth + i, 1);
+                        const monthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+                        monthsToCreate.push(monthStr);
+                    }
+
+                    console.log(`📅 Will create payments for months:`, monthsToCreate);
+
+                    // Check which months already have payment records for this client
+                    const { data: existingPayments, error: checkError } = await this.supabase
+                        .from('monthly_payments')
+                        .select('month')
+                        .eq('client_id', clientId);
+
+                    if (checkError) throw checkError;
+
+                    const existingMonths = new Set(existingPayments?.map(p => p.month) || []);
+
+                    // Filter out months that already have payments
+                    const monthsToInsert = monthsToCreate.filter(month => !existingMonths.has(month));
+
+                    if (monthsToInsert.length === 0) {
+                        console.log('ℹ️ All payment records already exist for this client');
+                        return 0;
+                    }
+
+                    // Create payment records
+                    const paymentRecords = monthsToInsert.map(month => ({
+                        client_id: clientId,
+                        month: month,
+                        amount: amount,
+                        status: 'unpaid',
+                        payment_date: null,
+                        notes: null
+                    }));
+
+                    const { error: insertError } = await this.supabase
+                        .from('monthly_payments')
+                        .insert(paymentRecords);
+
+                    if (insertError) throw insertError;
+
+                    console.log(`✅ Created ${paymentRecords.length} payment records for client ${clientId}`);
+                    return paymentRecords.length;
+
+                } catch (error) {
+                    console.error('❌ Error creating payment records for new client:', error);
                     throw error;
                 }
             }
@@ -2331,7 +2399,7 @@
             }
 
             async processMonthlyPerformance(metrics, clients, monthlyData) {
-                // Actual historical monthly revenue data
+                // Actual historical monthly revenue data (HISTORICAL ONLY - current month uses dynamic calculation)
                 const actualRevenueData = new Map([
                     ['2023-12', 1600],
                     ['2024-01', 1950],
@@ -2354,10 +2422,8 @@
                     ['2025-06', 14510],
                     ['2025-07', 15210],
                     ['2025-08', 16310],
-                    ['2025-09', 17210],
-                    ['2025-10', 17510],  // October 2025
-                    ['2025-11', 17510],  // November 2025 - aligned with October
-                    ['2025-12', 17510]   // December 2025 - aligned with October
+                    ['2025-09', 17210]
+                    // ✅ October 2025 onwards: Use DYNAMIC calculation from active clients
                 ]);
 
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
@@ -4597,21 +4663,29 @@
                 this.showLoading();
                 try {
                     console.log('Inserting client into Supabase...');
-                    const { error } = await this.supabase
+                    // Use .select().single() to get the inserted client with ID
+                    const { data: newClient, error } = await this.supabase
                         .from('clients')
                         .insert({
                             name: name,
                             amount: amount,
                             status: status,
                             start_date: startDate
-                        });
+                        })
+                        .select()
+                        .single();
 
                     if (error) {
                         console.error('Supabase error:', error);
                         throw error;
                     }
 
-                    console.log('Client inserted successfully');
+                    console.log('Client inserted successfully, ID:', newClient.id);
+
+                    // Create payment records for the new client (from start_date through +12 months)
+                    console.log('Creating payment records for new client...');
+                    const paymentsCreated = await this.createPaymentRecordsForNewClient(newClient.id, startDate, amount);
+                    console.log(`✅ Created ${paymentsCreated} payment records for ${name}`);
 
                     // CRITICAL: Close modal and hide loading FIRST, before data refresh
                     console.log('Closing modal...');
@@ -6035,7 +6109,7 @@
                 const ctx = document.getElementById('overviewMonthlyRevenueChart');
                 if (!ctx) return;
 
-                // Actual historical monthly revenue data
+                // Actual historical monthly revenue data (HISTORICAL ONLY - current month uses dynamic calculation)
                 const actualRevenueData = new Map([
                     ['2023-12', 1600],
                     ['2024-01', 1950],
@@ -6058,10 +6132,8 @@
                     ['2025-06', 14510],
                     ['2025-07', 15210],
                     ['2025-08', 16310],
-                    ['2025-09', 17210],
-                    ['2025-10', 17510],  // October 2025
-                    ['2025-11', 17510],  // November 2025 - aligned with October
-                    ['2025-12', 17510]   // December 2025 - aligned with October
+                    ['2025-09', 17210]
+                    // ✅ October 2025 onwards: Use DYNAMIC calculation from active clients
                 ]);
 
                 // Calculate historical revenue progression based on client acquisition and growth
