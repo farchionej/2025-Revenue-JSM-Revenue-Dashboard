@@ -1101,18 +1101,18 @@
 
                 const statsHtml = `
                     <div class="stat-card ${collectionRate < 75 ? 'alert' : collectionRate > 90 ? 'good' : ''}">
-                        <div class="stat-label">Current Month Revenue</div>
-                        <div class="stat-value">$${totalPaid.toLocaleString()}</div>
+                        <div class="stat-label">Current Month Expected Revenue</div>
+                        <div class="stat-value">$${totalExpected.toLocaleString()}</div>
                         <div class="stat-change ${collectionRate > 90 ? 'positive' : 'negative'}">
-                            ${collectionRate.toFixed(1)}% collection rate
+                            $${totalPaid.toLocaleString()} collected (${collectionRate.toFixed(1)}%)
                         </div>
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-label">Total Expected</div>
+                        <div class="stat-label">Monthly Recurring Revenue (MRR)</div>
                         <div class="stat-value">$${totalExpected.toLocaleString()}</div>
                         <div class="stat-change">
-                            ${activeClients} active clients, ${clients.length} total restaurants
+                            ${activeClients} active clients
                         </div>
                     </div>
 
