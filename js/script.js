@@ -1131,7 +1131,7 @@
                         <div class="stat-label">Annual Recurring Revenue (ARR)</div>
                         <div class="stat-value">$${(totalExpected * 12).toLocaleString()}</div>
                         <div class="stat-change">
-                            Based on ${new Date(this.currentMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (MRR × 12)
+                            Based on ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (MRR × 12)
                         </div>
                     </div>
                 `;
