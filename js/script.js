@@ -1081,8 +1081,35 @@
             }
 
             async updateQuickStats() {
+                // Get actual current month for Quick Stats (not the selected month from dropdown)
+                const today = new Date();
+                const actualCurrentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
                 const clients = await this.loadClients();
-                const payments = await this.loadPayments();
+
+                // Load payments for the actual current month, not this.currentMonth
+                const { data, error } = await this.supabase
+                    .from('monthly_payments')
+                    .select(`
+                        *,
+                        clients (
+                            id,
+                            name,
+                            amount,
+                            status
+                        )
+                    `)
+                    .eq('month', actualCurrentMonth)
+                    .not('clients.status', 'eq', 'hidden');
+
+                if (error) {
+                    console.error('Error loading payments for Quick Stats:', error);
+                    return;
+                }
+
+                const payments = (data || []).filter(payment =>
+                    payment.clients && payment.clients.status !== 'hidden'
+                );
 
                 let totalExpected = 0;
                 let totalPaid = 0;
