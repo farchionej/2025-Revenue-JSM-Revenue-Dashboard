@@ -586,6 +586,9 @@
                 // Re-populate month selector to ensure UI is in sync
                 this.populateMonthSelector();
 
+                // Update Quick Stats for the new month
+                await this.updateQuickStats();
+
                 // Re-render the current tab to show the new month's data
                 await this.renderTabContent(this.currentTab);
 
