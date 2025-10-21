@@ -3782,6 +3782,7 @@
                     cleanupDuplicateClients: () => this.cleanupDuplicateClients(),
                     cleanupDuplicatePayments: () => this.cleanupDuplicatePayments(),
                     migratePaymentsSchema: () => this.migratePaymentsSchema(),
+                    addReactivationDateColumn: () => this.addReactivationDateColumn(),
                     mergeFSDCAndRegal: () => this.mergeFSDCAndRegal(),
                     contactClient: (clientName) => this.contactClient(clientName),
                     exportOverdueClients: () => this.exportOverdueClients()
@@ -6718,6 +6719,66 @@
                 } catch (error) {
                     console.error('❌ Error merging clients:', error);
                     this.toast('Error merging clients', 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async addReactivationDateColumn() {
+                console.log('🔧 Starting reactivation_date column migration...');
+
+                if (!confirm('This will add a "reactivation_date" column to the clients table.\n\nThis column is required for the client reactivation feature to work properly.\n\nContinue?')) {
+                    return;
+                }
+
+                this.showLoading();
+                try {
+                    // Step 1: Check if column already exists
+                    console.log('Checking if reactivation_date column exists...');
+                    const { data: testData, error: testError } = await this.supabase
+                        .from('clients')
+                        .select('reactivation_date')
+                        .limit(1);
+
+                    if (!testError) {
+                        console.log('✅ Column already exists!');
+                        this.toast('✅ reactivation_date column already exists!', 'success');
+                        return;
+                    }
+
+                    // Step 2: Try to add the column via SQL RPC
+                    console.log('Adding reactivation_date column to clients table...');
+                    try {
+                        const { error: rpcError } = await this.supabase.rpc('exec_sql', {
+                            sql: 'ALTER TABLE clients ADD COLUMN IF NOT EXISTS reactivation_date TEXT;'
+                        });
+
+                        if (rpcError) {
+                            console.warn('RPC method failed:', rpcError);
+                            throw rpcError;
+                        }
+
+                        console.log('✅ Column added successfully via RPC!');
+                        this.toast('✅ Successfully added reactivation_date column!', 'success');
+                    } catch (rpcError) {
+                        console.warn('Could not add column via RPC (this is normal):', rpcError);
+                        console.log('');
+                        console.log('═══════════════════════════════════════');
+                        console.log('📋 MANUAL STEPS REQUIRED:');
+                        console.log('═══════════════════════════════════════');
+                        console.log('1. Go to your Supabase dashboard');
+                        console.log('2. Navigate to SQL Editor');
+                        console.log('3. Run this SQL command:');
+                        console.log('');
+                        console.log('   ALTER TABLE clients ADD COLUMN reactivation_date TEXT;');
+                        console.log('');
+                        console.log('═══════════════════════════════════════');
+
+                        this.toast('⚠️ Manual step required - See console for SQL command to run in Supabase', 'warning');
+                    }
+                } catch (error) {
+                    console.error('❌ Error adding reactivation_date column:', error);
+                    this.toast('Error adding column - see console for details', 'error');
                 } finally {
                     this.hideLoading();
                 }
