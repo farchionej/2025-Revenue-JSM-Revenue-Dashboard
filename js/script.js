@@ -6725,60 +6725,94 @@
             }
 
             async addReactivationDateColumn() {
-                console.log('🔧 Starting reactivation_date column migration...');
+                console.log('🔧 Starting client status columns migration...');
 
-                if (!confirm('This will add a "reactivation_date" column to the clients table.\n\nThis column is required for the client reactivation feature to work properly.\n\nContinue?')) {
+                if (!confirm('This will add "churn_date" and "reactivation_date" columns to the clients table.\n\nThese columns are required for the client status management features.\n\nContinue?')) {
                     return;
                 }
 
                 this.showLoading();
                 try {
-                    // Step 1: Check if column already exists
-                    console.log('Checking if reactivation_date column exists...');
-                    const { data: testData, error: testError } = await this.supabase
-                        .from('clients')
-                        .select('reactivation_date')
-                        .limit(1);
+                    console.log('═══════════════════════════════════════');
+                    console.log('📋 ADDING REQUIRED COLUMNS TO CLIENTS TABLE');
+                    console.log('═══════════════════════════════════════');
+                    console.log('');
+                    console.log('Please run the following SQL in your Supabase SQL Editor:');
+                    console.log('');
+                    console.log('-- Add churn_date column (tracks when client was churned/paused)');
+                    console.log('ALTER TABLE clients ADD COLUMN IF NOT EXISTS churn_date TEXT;');
+                    console.log('');
+                    console.log('-- Add reactivation_date column (tracks when client was reactivated)');
+                    console.log('ALTER TABLE clients ADD COLUMN IF NOT EXISTS reactivation_date TEXT;');
+                    console.log('');
+                    console.log('═══════════════════════════════════════');
+                    console.log('');
+                    console.log('Steps:');
+                    console.log('1. Copy the SQL commands above');
+                    console.log('2. Go to https://supabase.com/dashboard/project/YOUR_PROJECT/sql');
+                    console.log('3. Paste and run the SQL');
+                    console.log('4. Refresh your dashboard');
+                    console.log('');
 
-                    if (!testError) {
-                        console.log('✅ Column already exists!');
-                        this.toast('✅ reactivation_date column already exists!', 'success');
-                        return;
-                    }
+                    // Show user-friendly modal with SQL
+                    const sqlCommands = `-- Add required columns for client status management
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS churn_date TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS reactivation_date TEXT;`;
 
-                    // Step 2: Try to add the column via SQL RPC
-                    console.log('Adding reactivation_date column to clients table...');
-                    try {
-                        const { error: rpcError } = await this.supabase.rpc('exec_sql', {
-                            sql: 'ALTER TABLE clients ADD COLUMN IF NOT EXISTS reactivation_date TEXT;'
-                        });
+                    // Create a copyable text area
+                    const modalHtml = `
+                        <div id="sqlModal" class="modal show">
+                            <div class="modal-content" style="max-width: 600px;">
+                                <h2 style="margin-bottom: 16px;">Add Required Database Columns</h2>
+                                <p style="margin-bottom: 16px; color: var(--secondary-text);">
+                                    Please run this SQL in your Supabase SQL Editor:
+                                </p>
+                                <textarea id="sqlCommands" readonly style="
+                                    width: 100%;
+                                    height: 120px;
+                                    padding: 12px;
+                                    font-family: monospace;
+                                    font-size: 13px;
+                                    background: #1a1a1a;
+                                    color: #00ff00;
+                                    border: 1px solid var(--border-color);
+                                    border-radius: 4px;
+                                    margin-bottom: 16px;
+                                    resize: none;
+                                ">${sqlCommands}</textarea>
+                                <div style="display: flex; gap: 12px;">
+                                    <button class="btn primary" onclick="
+                                        const textarea = document.getElementById('sqlCommands');
+                                        textarea.select();
+                                        document.execCommand('copy');
+                                        Dashboard.toast('SQL copied to clipboard!', 'success');
+                                    ">
+                                        Copy SQL
+                                    </button>
+                                    <button class="btn secondary" onclick="
+                                        window.open('https://supabase.com/dashboard', '_blank');
+                                    ">
+                                        Open Supabase
+                                    </button>
+                                    <button class="btn secondary" onclick="
+                                        document.getElementById('sqlModal').remove();
+                                    ">
+                                        Close
+                                    </button>
+                                </div>
+                                <p style="margin-top: 16px; font-size: 0.9em; color: var(--secondary-text);">
+                                    After running the SQL, refresh your dashboard and try reactivating the client again.
+                                </p>
+                            </div>
+                        </div>
+                    `;
 
-                        if (rpcError) {
-                            console.warn('RPC method failed:', rpcError);
-                            throw rpcError;
-                        }
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-                        console.log('✅ Column added successfully via RPC!');
-                        this.toast('✅ Successfully added reactivation_date column!', 'success');
-                    } catch (rpcError) {
-                        console.warn('Could not add column via RPC (this is normal):', rpcError);
-                        console.log('');
-                        console.log('═══════════════════════════════════════');
-                        console.log('📋 MANUAL STEPS REQUIRED:');
-                        console.log('═══════════════════════════════════════');
-                        console.log('1. Go to your Supabase dashboard');
-                        console.log('2. Navigate to SQL Editor');
-                        console.log('3. Run this SQL command:');
-                        console.log('');
-                        console.log('   ALTER TABLE clients ADD COLUMN reactivation_date TEXT;');
-                        console.log('');
-                        console.log('═══════════════════════════════════════');
-
-                        this.toast('⚠️ Manual step required - See console for SQL command to run in Supabase', 'warning');
-                    }
+                    this.toast('📋 SQL commands ready - see modal', 'info');
                 } catch (error) {
-                    console.error('❌ Error adding reactivation_date column:', error);
-                    this.toast('Error adding column - see console for details', 'error');
+                    console.error('❌ Error:', error);
+                    this.toast('Error - see console for details', 'error');
                 } finally {
                     this.hideLoading();
                 }
