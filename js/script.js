@@ -722,6 +722,34 @@
                         return;
                     }
 
+                    // Filter clients to only those who should have started by this month
+                    // Extract year-month from the month parameter (e.g., "2025-10")
+                    const [targetYear, targetMonth] = month.split('-').map(Number);
+                    const targetMonthDate = new Date(targetYear, targetMonth - 1, 1); // Create date for first day of target month
+
+                    const eligibleClients = clients.filter(client => {
+                        if (!client.start_date) {
+                            // If no start_date, assume legacy client - include them
+                            return true;
+                        }
+
+                        // Parse client's start date
+                        const startDate = new Date(client.start_date);
+                        const startYear = startDate.getFullYear();
+                        const startMonth = startDate.getMonth() + 1; // Convert to 1-based month
+                        const clientStartMonthDate = new Date(startYear, startMonth - 1, 1);
+
+                        // Only include if client's start month is <= target month
+                        return clientStartMonthDate <= targetMonthDate;
+                    });
+
+                    if (eligibleClients.length === 0) {
+                        console.log(`No clients eligible for payment records in ${month}`);
+                        return;
+                    }
+
+                    console.log(`📅 ${eligibleClients.length} clients eligible for ${month} (${clients.length - eligibleClients.length} not yet started)`);
+
                     // Check which clients already have payment records for this month
                     const { data: existingPayments, error: checkError } = await this.supabase
                         .from('monthly_payments')
@@ -734,10 +762,10 @@
                     const existingClientIds = new Set(existingPayments?.map(p => p.client_id) || []);
 
                     // Filter out clients that already have payments
-                    const clientsNeedingPayments = clients.filter(client => !existingClientIds.has(client.id));
+                    const clientsNeedingPayments = eligibleClients.filter(client => !existingClientIds.has(client.id));
 
                     if (clientsNeedingPayments.length === 0) {
-                        console.log(`All clients already have payment records for ${month}`);
+                        console.log(`All eligible clients already have payment records for ${month}`);
                         return;
                     }
 
@@ -757,7 +785,7 @@
 
                     if (error) throw error;
 
-                    console.log(`Created ${paymentRecords.length} payment records for ${month} (${existingClientIds.size} already existed)`);
+                    console.log(`✅ Created ${paymentRecords.length} payment records for ${month} (${existingClientIds.size} already existed, ${clients.length - eligibleClients.length} not yet started)`);
                     return data;
                 } catch (error) {
                     console.error('Error creating payments for month:', error);
