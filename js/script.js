@@ -728,19 +728,31 @@
                     const targetMonthDate = new Date(targetYear, targetMonth - 1, 1); // Create date for first day of target month
 
                     const eligibleClients = clients.filter(client => {
-                        if (!client.start_date) {
-                            // If no start_date, assume legacy client - include them
+                        // Determine effective start date:
+                        // 1. If client has reactivation_date (reactivated after being churned/paused), use that
+                        // 2. Otherwise, use start_date
+                        // 3. If neither exists, assume legacy client - include them
+
+                        let effectiveStartDate = null;
+
+                        if (client.reactivation_date) {
+                            // Client was reactivated - use reactivation date as effective start
+                            const [reactivationYear, reactivationMonth] = client.reactivation_date.split('-').map(Number);
+                            effectiveStartDate = new Date(reactivationYear, reactivationMonth - 1, 1);
+                            console.log(`Client ${client.name} has reactivation_date: ${client.reactivation_date}`);
+                        } else if (client.start_date) {
+                            // Normal client - use original start date
+                            const startDate = new Date(client.start_date);
+                            const startYear = startDate.getFullYear();
+                            const startMonth = startDate.getMonth() + 1; // Convert to 1-based month
+                            effectiveStartDate = new Date(startYear, startMonth - 1, 1);
+                        } else {
+                            // No start_date or reactivation_date - legacy client, include them
                             return true;
                         }
 
-                        // Parse client's start date
-                        const startDate = new Date(client.start_date);
-                        const startYear = startDate.getFullYear();
-                        const startMonth = startDate.getMonth() + 1; // Convert to 1-based month
-                        const clientStartMonthDate = new Date(startYear, startMonth - 1, 1);
-
-                        // Only include if client's start month is <= target month
-                        return clientStartMonthDate <= targetMonthDate;
+                        // Only include if client's effective start month is <= target month
+                        return effectiveStartDate <= targetMonthDate;
                     });
 
                     if (eligibleClients.length === 0) {
@@ -748,7 +760,7 @@
                         return;
                     }
 
-                    console.log(`📅 ${eligibleClients.length} clients eligible for ${month} (${clients.length - eligibleClients.length} not yet started)`);
+                    console.log(`📅 ${eligibleClients.length} clients eligible for ${month} (${clients.length - eligibleClients.length} not yet started/reactivated)`);
 
                     // Check which clients already have payment records for this month
                     const { data: existingPayments, error: checkError } = await this.supabase
@@ -853,6 +865,70 @@
 
                 } catch (error) {
                     console.error('❌ Error creating payment records for new client:', error);
+                    throw error;
+                }
+            }
+
+            async createPaymentRecordsForReactivation(clientId, reactivationMonth, amount) {
+                // Create payment records for a reactivated client (churned/paused -> active)
+                // Generates records from reactivation month through +12 months
+                console.log(`🔄 Creating payment records for reactivated client ${clientId} from ${reactivationMonth} for $${amount}`);
+
+                try {
+                    // Parse reactivation month (format: "2025-11")
+                    const [year, month] = reactivationMonth.split('-').map(Number);
+                    const reactivationDate = new Date(year, month - 1, 1); // month is 1-based in string, 0-based in Date
+
+                    const monthsToCreate = [];
+
+                    // Generate 13 months starting from reactivation month
+                    for (let i = 0; i < 13; i++) {
+                        const targetDate = new Date(year, month - 1 + i, 1);
+                        const monthStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+                        monthsToCreate.push(monthStr);
+                    }
+
+                    console.log(`📅 Will create reactivation payments for months:`, monthsToCreate);
+
+                    // Check which months already have payment records for this client
+                    const { data: existingPayments, error: checkError } = await this.supabase
+                        .from('monthly_payments')
+                        .select('month')
+                        .eq('client_id', clientId);
+
+                    if (checkError) throw checkError;
+
+                    const existingMonths = new Set(existingPayments?.map(p => p.month) || []);
+
+                    // Filter out months that already have payments
+                    const monthsToInsert = monthsToCreate.filter(month => !existingMonths.has(month));
+
+                    if (monthsToInsert.length === 0) {
+                        console.log('ℹ️ All reactivation payment records already exist for this client');
+                        return 0;
+                    }
+
+                    // Create payment records
+                    const paymentRecords = monthsToInsert.map(month => ({
+                        client_id: clientId,
+                        month: month,
+                        amount: amount,
+                        status: 'unpaid',
+                        payment_date: null,
+                        notes: null
+                    }));
+
+                    const { error: insertError } = await this.supabase
+                        .from('monthly_payments')
+                        .insert(paymentRecords);
+
+                    if (insertError) throw insertError;
+
+                    console.log(`✅ Created ${paymentRecords.length} reactivation payment records for client ${clientId}`);
+                    return paymentRecords.length;
+
+                } catch (error) {
+                    console.error('❌ Error creating payment records for reactivated client:', error);
                     throw error;
                 }
             }
@@ -3866,32 +3942,77 @@
             async performStatusUpdate(clientId, newStatus) {
                 this.showLoading();
                 try {
+                    console.log('═══════════════════════════════════════');
+                    console.log('🔄 PERFORM STATUS UPDATE');
+                    console.log('Client ID:', clientId);
+                    console.log('New Status:', newStatus);
+                    console.log('Current Month:', this.currentMonth);
+                    console.log('═══════════════════════════════════════');
+
+                    // Get current client data to check previous status
+                    const clients = await this.loadClients();
+                    const client = clients.find(c => c.id === clientId);
+
+                    if (!client) {
+                        throw new Error(`Client with ID ${clientId} not found`);
+                    }
+
+                    const previousStatus = client.status;
+                    console.log('Previous Status:', previousStatus);
+
                     const updateData = { status: newStatus };
 
-                    // If marking as churned, set churn_date to current month
-                    if (newStatus === 'churned') {
+                    // If marking as churned or paused, set churn_date and clear reactivation_date
+                    if (newStatus === 'churned' || newStatus === 'paused') {
                         updateData.churn_date = this.currentMonth;
-                        console.log(`Setting churn_date to ${this.currentMonth}`);
+                        updateData.reactivation_date = null;
+                        console.log(`Setting churn_date to ${this.currentMonth}, clearing reactivation_date`);
                     }
-                    // If un-churning (changing from churned to active/paused), clear churn_date
-                    else {
+                    // If reactivating (changing from churned/paused to active), set reactivation_date
+                    else if (newStatus === 'active' && (previousStatus === 'churned' || previousStatus === 'paused')) {
                         updateData.churn_date = null;
+                        updateData.reactivation_date = this.currentMonth;
+                        console.log(`✅ REACTIVATING CLIENT: Setting reactivation_date to ${this.currentMonth}`);
+                    }
+                    // If changing from active to active (shouldn't happen but just clear churn_date)
+                    else if (newStatus === 'active') {
+                        updateData.churn_date = null;
+                        // Don't modify reactivation_date if already active
                     }
 
-                    const { error } = await this.supabase
+                    console.log('Update Data:', updateData);
+
+                    const { error: updateError } = await this.supabase
                         .from('clients')
                         .update(updateData)
                         .eq('id', clientId);
 
-                    if (error) throw error;
+                    if (updateError) {
+                        console.error('❌ Supabase update error:', updateError);
+                        throw updateError;
+                    }
+
+                    console.log('✅ Client status updated in database');
+
+                    // If reactivating a client, create payment records starting from reactivation month
+                    if (newStatus === 'active' && (previousStatus === 'churned' || previousStatus === 'paused')) {
+                        console.log('🔄 Creating payment records for reactivated client...');
+                        const paymentsCreated = await this.createPaymentRecordsForReactivation(clientId, this.currentMonth, client.amount);
+                        console.log(`✅ Created ${paymentsCreated} payment records starting from ${this.currentMonth}`);
+                    }
 
                     await this.loadClients();
                     await this.renderTabContent(this.currentTab);
 
                     this.toast(`Client status updated to ${newStatus}`, 'success');
                 } catch (error) {
+                    console.error('═══════════════════════════════════════');
+                    console.error('❌ ERROR IN performStatusUpdate');
+                    console.error('Error:', error);
+                    console.error('Error message:', error.message);
+                    console.error('Error details:', error.details);
+                    console.error('═══════════════════════════════════════');
                     this.toast('Failed to update client status', 'error');
-                    console.error('Error updating client status:', error);
                 } finally {
                     this.hideLoading();
                 }
