@@ -3952,11 +3952,22 @@
 
                     // Get current client data to check previous status
                     const clients = await this.loadClients();
-                    const client = clients.find(c => c.id === clientId);
+                    console.log('Total clients loaded:', clients.length);
+                    console.log('Looking for client ID:', clientId, 'Type:', typeof clientId);
+
+                    // Try both strict and loose equality to handle string/number mismatch
+                    let client = clients.find(c => c.id === clientId);
+                    if (!client) {
+                        console.warn('Strict equality failed, trying loose equality...');
+                        client = clients.find(c => c.id == clientId); // loose equality
+                    }
 
                     if (!client) {
-                        throw new Error(`Client with ID ${clientId} not found`);
+                        console.error('Available client IDs:', clients.map(c => ({ id: c.id, type: typeof c.id, name: c.name })));
+                        throw new Error(`Client with ID ${clientId} not found in ${clients.length} total clients`);
                     }
+
+                    console.log('Found client:', client.name, 'ID:', client.id, 'Type:', typeof client.id);
 
                     const previousStatus = client.status;
                     console.log('Previous Status:', previousStatus);
