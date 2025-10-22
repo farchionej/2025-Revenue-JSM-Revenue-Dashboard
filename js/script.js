@@ -1537,6 +1537,39 @@
                 `;
             }
 
+            // Helper function to determine client status for a specific month
+            getClientStatusForMonth(client, month) {
+                // month format: "2025-11"
+
+                // If client has a reactivation date
+                if (client.reactivation_date) {
+                    if (month >= client.reactivation_date) {
+                        // Month is >= reactivation date → client is active
+                        return 'active';
+                    } else if (client.churn_date && month >= client.churn_date) {
+                        // Month is between churn_date and reactivation_date → client was churned
+                        return 'churned';
+                    } else {
+                        // Month is before churn_date → client was active
+                        return 'active';
+                    }
+                }
+
+                // If client has a churn date (and no reactivation)
+                if (client.churn_date) {
+                    if (month >= client.churn_date) {
+                        // Month is >= churn date → client is churned
+                        return 'churned';
+                    } else {
+                        // Month is before churn date → client was active
+                        return 'active';
+                    }
+                }
+
+                // No churn or reactivation dates → use current status
+                return client.status;
+            }
+
             async renderClientPaymentManagement() {
                 console.log('Loading unified client & payment management data...');
 
@@ -1577,15 +1610,25 @@
                     }
                 });
 
-                // Don't filter churned clients here - let the filter buttons control visibility
-                // This allows us to show churned clients only when "Churned" filter is clicked
-                const displayClients = clients;
+                // Calculate month-specific status for each client
+                // This respects churn_date and reactivation_date
+                const displayClients = clients.map(client => ({
+                    ...client,
+                    monthStatus: this.getClientStatusForMonth(client, this.currentMonth)
+                }));
 
-                // Calculate filter counts (from all clients)
-                const activeClients = clients.filter(c => c.status === 'active');
-                const pausedClients = clients.filter(c => c.status === 'paused');
-                const hiddenClients = clients.filter(c => c.status === 'hidden');
-                const churnedClients = clients.filter(c => c.status === 'churned');
+                console.log('📅 Client statuses for', this.currentMonth + ':');
+                displayClients.forEach(c => {
+                    if (c.monthStatus !== c.status) {
+                        console.log(`  ${c.name}: current=${c.status}, month=${c.monthStatus}, churn=${c.churn_date}, reactivation=${c.reactivation_date}`);
+                    }
+                });
+
+                // Calculate filter counts using month-specific status
+                const activeClients = displayClients.filter(c => c.monthStatus === 'active');
+                const pausedClients = displayClients.filter(c => c.monthStatus === 'paused');
+                const hiddenClients = displayClients.filter(c => c.monthStatus === 'hidden');
+                const churnedClients = displayClients.filter(c => c.monthStatus === 'churned');
 
                 // Payment status counts (only for active clients)
                 const activePayments = activeClients.map(client => paymentMap.get(client.id)).filter(Boolean);
@@ -1689,7 +1732,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="clientPaymentTableBody">
-                                    ${this.renderUnifiedClientPaymentRows(displayClients.filter(c => c.status !== 'churned'), paymentMap)}
+                                    ${this.renderUnifiedClientPaymentRows(displayClients.filter(c => c.monthStatus !== 'churned'), paymentMap)}
                                 </tbody>
                                 <tfoot>
                                     <tr style="background: var(--light-gray); font-weight: 600; border-top: 2px solid var(--border-gray);">
@@ -1762,14 +1805,17 @@
                     const payment = paymentMap.get(client.id);
                     const amount = parseFloat(client.amount) || 0;
 
+                    // Use monthStatus if available (respects churn/reactivation dates), otherwise use current status
+                    const displayStatus = client.monthStatus || client.status;
+
                     // Client status badge - clickable to change status
-                    const clientStatusClass = client.status === 'active' ? 'success' :
-                                             client.status === 'paused' ? 'warning' : 'error';
-                    const clientStatusText = client.status.charAt(0).toUpperCase() + client.status.slice(1);
+                    const clientStatusClass = displayStatus === 'active' ? 'success' :
+                                             displayStatus === 'paused' ? 'warning' : 'error';
+                    const clientStatusText = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1);
 
                     // Payment status toggle buttons (only show for active clients)
                     let paymentStatusHtml = '<span class="status-badge neutral">N/A</span>';
-                    if (client.status === 'active' && payment) {
+                    if (displayStatus === 'active' && payment) {
                         const isPaid = payment.status === 'paid';
                         const isUnpaid = payment.status === 'unpaid';
                         paymentStatusHtml = `
@@ -1786,14 +1832,14 @@
 
                     // Payment date (only show for active clients with payments)
                     let paymentDateHtml = '-';
-                    if (client.status === 'active' && payment && payment.date) {
+                    if (displayStatus === 'active' && payment && payment.date) {
                         const date = new Date(payment.date + 'T00:00:00');
                         paymentDateHtml = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     }
 
                     // Notes (only show for active clients with payments)
                     let notesHtml = '-';
-                    if (client.status === 'active' && payment && payment.notes) {
+                    if (displayStatus === 'active' && payment && payment.notes) {
                         const truncated = payment.notes.length > 30 ? payment.notes.substring(0, 30) + '...' : payment.notes;
                         notesHtml = `<span title="${payment.notes}">${truncated}</span>`;
                     }
@@ -5185,27 +5231,30 @@
                     }
                 });
 
-                // Don't auto-filter churned - let the filter button control visibility
-                const displayClients = clients;
+                // Calculate month-specific status for each client
+                const displayClients = clients.map(client => ({
+                    ...client,
+                    monthStatus: this.getClientStatusForMonth(client, this.currentMonth)
+                }));
 
                 let filteredClients = [];
 
                 if (filter === 'all') {
-                    // Show only active clients (exclude churned)
-                    filteredClients = displayClients.filter(c => c.status === 'active');
+                    // Show only active clients (exclude churned) for THIS MONTH
+                    filteredClients = displayClients.filter(c => c.monthStatus === 'active');
                 } else if (filter === 'paused') {
-                    // Show paused clients only
-                    filteredClients = displayClients.filter(c => c.status === 'paused');
+                    // Show paused clients for THIS MONTH
+                    filteredClients = displayClients.filter(c => c.monthStatus === 'paused');
                 } else if (filter === 'hidden') {
-                    // Show hidden clients only
-                    filteredClients = displayClients.filter(c => c.status === 'hidden');
+                    // Show hidden clients for THIS MONTH
+                    filteredClients = displayClients.filter(c => c.monthStatus === 'hidden');
                 } else if (filter === 'churned') {
-                    // Show ONLY churned clients
-                    filteredClients = displayClients.filter(c => c.status === 'churned');
+                    // Show ONLY churned clients for THIS MONTH
+                    filteredClients = displayClients.filter(c => c.monthStatus === 'churned');
                 } else if (filter === 'paid' || filter === 'unpaid') {
-                    // Show only active clients with specified payment status (exclude churned)
+                    // Show only active clients (for THIS MONTH) with specified payment status
                     filteredClients = displayClients.filter(c => {
-                        if (c.status !== 'active') return false;
+                        if (c.monthStatus !== 'active') return false;
                         const payment = paymentMap.get(c.id);
                         return payment && payment.status === filter;
                     });
