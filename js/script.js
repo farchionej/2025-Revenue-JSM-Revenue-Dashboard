@@ -4028,14 +4028,15 @@
                     }
                     // If reactivating (changing from churned/paused to active), set reactivation_date
                     else if (newStatus === 'active' && (previousStatus === 'churned' || previousStatus === 'paused')) {
-                        updateData.churn_date = null;
+                        // KEEP churn_date - we need it to know when they were churned!
+                        // Just add reactivation_date
                         updateData.reactivation_date = this.currentMonth;
-                        console.log(`✅ REACTIVATING CLIENT: Setting reactivation_date to ${this.currentMonth}`);
+                        console.log(`✅ REACTIVATING CLIENT: Setting reactivation_date to ${this.currentMonth}, keeping churn_date=${client.churn_date}`);
                     }
-                    // If changing from active to active (shouldn't happen but just clear churn_date)
+                    // If changing to active from active (shouldn't happen but handle gracefully)
                     else if (newStatus === 'active') {
-                        updateData.churn_date = null;
-                        // Don't modify reactivation_date if already active
+                        // Don't modify churn_date or reactivation_date if already active
+                        console.log(`Client already active, no date changes needed`);
                     }
 
                     console.log('Update Data:', updateData);
