@@ -2647,9 +2647,12 @@
                         console.log(`Using actual revenue data for ${month}: $${expectedRevenue}`);
                     } else {
                         // Calculate expected revenue for current/future months from active clients
+                        // ✅ FIXED: Now uses getClientStatusForMonth to respect churn_date and reactivation_date
                         const includedClients = [];
                         clients.forEach(client => {
-                            if (client.status === 'active') {
+                            // Check month-specific status instead of just client.status
+                            const monthStatus = this.getClientStatusForMonth(client, month);
+                            if (monthStatus === 'active') {
                                 const clientStart = new Date(client.start_date || '2024-01-01');
                                 if (clientStart <= monthDate) {
                                     const amt = parseFloat(client.amount) || 0;
@@ -3943,8 +3946,11 @@
             }
 
             async toggleClientStatus(clientId, newStatus) {
+                // ✅ FIXED: Ensure we're using the current month value
+                console.log('🔄 Toggle client status - Current month:', this.currentMonth);
                 const monthDate = new Date(this.currentMonth + '-01');
                 const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                console.log('🔄 Month name for confirmation:', monthName);
 
                 // Configure modal based on status
                 let title, message, icon, iconClass, confirmText, confirmClass;
