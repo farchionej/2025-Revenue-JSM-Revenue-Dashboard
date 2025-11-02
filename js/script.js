@@ -6466,16 +6466,21 @@
                     if (actualRevenueData.has(monthStr)) {
                         monthlyRevenue = actualRevenueData.get(monthStr);
                         console.log(`Using actual revenue for ${monthStr}: $${monthlyRevenue}`);
-                    } else if (monthStr >= currentMonthStr) {
-                        // DYNAMIC CALCULATION: For current and future months, calculate from active clients
-                        // Only include clients that have started by this month
+                    } else if (monthStr >= '2025-10') {
+                        // ✅ FIXED: DYNAMIC CALCULATION for October 2025 onwards (not just current+ months)
+                        // This ensures October bar persists even when current month switches to November
+                        // Only include clients that have started by this month and respect churn dates
                         const monthDate = new Date(monthStr + '-01');
                         const includedClients = [];
                         monthlyRevenue = activeClients.reduce((sum, client) => {
-                            const clientStart = new Date(client.start_date || '2024-01-01');
-                            if (clientStart <= monthDate) {
-                                includedClients.push({ name: client.name, amount: parseFloat(client.amount) || 0, startDate: client.start_date });
-                                return sum + (parseFloat(client.amount) || 0);
+                            // Check month-specific status to respect churn_date and reactivation_date
+                            const monthStatus = this.getClientStatusForMonth(client, monthStr);
+                            if (monthStatus === 'active') {
+                                const clientStart = new Date(client.start_date || '2024-01-01');
+                                if (clientStart <= monthDate) {
+                                    includedClients.push({ name: client.name, amount: parseFloat(client.amount) || 0, startDate: client.start_date });
+                                    return sum + (parseFloat(client.amount) || 0);
+                                }
                             }
                             return sum;
                         }, 0);
