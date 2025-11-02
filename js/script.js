@@ -2609,32 +2609,40 @@
                 // Since monthlyData is ordered descending, reverse to get chronological order for charts
                 const chronologicalData = monthlyData.slice().reverse();
 
-                // Include current month and next 2 months for planning (if not in monthlyData)
-                const currentMonth = new Date().toISOString().slice(0, 7);
+                // ✅ FIXED: Generate continuous month range to prevent gaps (e.g., October disappearing when month switches to November)
                 const currentDate = new Date();
+                const currentMonth = new Date().toISOString().slice(0, 7);
 
-                // Add current month if missing
-                const hasCurrentMonth = chronologicalData.some(record => record.month === currentMonth);
-                if (!hasCurrentMonth && chronologicalData.length > 0) {
-                    chronologicalData.push({
-                        month: currentMonth,
-                        costs: 0
-                    });
+                // Find earliest month in existing data, or start from Dec 2023
+                let earliestMonth = '2023-12';
+                if (chronologicalData.length > 0) {
+                    earliestMonth = chronologicalData[0].month;
                 }
 
-                // Add next 2 future months for revenue planning
-                for (let i = 1; i <= 2; i++) {
-                    const futureDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-                    const futureMonth = futureDate.toISOString().slice(0, 7);
-                    const hasFutureMonth = chronologicalData.some(record => record.month === futureMonth);
+                // Generate ALL months from earliest through current + 2 future months
+                const allMonths = [];
+                const startDate = new Date(earliestMonth + '-01');
+                const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 1); // current + 2 future
 
-                    if (!hasFutureMonth) {
-                        chronologicalData.push({
-                            month: futureMonth,
+                for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
+                    const monthStr = d.toISOString().slice(0, 7);
+                    const existingRecord = chronologicalData.find(record => record.month === monthStr);
+
+                    if (existingRecord) {
+                        allMonths.push(existingRecord);
+                    } else {
+                        // Fill gap with zero costs
+                        allMonths.push({
+                            month: monthStr,
                             costs: 0
                         });
+                        console.log(`📅 Filled missing month: ${monthStr}`);
                     }
                 }
+
+                // Replace chronologicalData with complete continuous range
+                chronologicalData.length = 0;
+                chronologicalData.push(...allMonths);
 
                 for (const monthRecord of chronologicalData.slice(-26)) { // Last 24 months + 2 future months
                     const month = monthRecord.month;
