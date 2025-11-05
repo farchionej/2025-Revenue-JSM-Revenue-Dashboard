@@ -1674,8 +1674,17 @@
         }
 
         .dark-mode .quick-actions {
-            background: var(--card-background);
+            background: var(--card-background) !important;
             border-color: var(--border-gray);
+        }
+
+        /* Force dark backgrounds on all white sections */
+        .dark-mode .section-controls {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode tbody tr:hover {
+            background: var(--glass-background) !important;
         }
 
         .dark-mode .action-label {
@@ -3024,4 +3033,61 @@
             .chart-wrapper canvas {
                 max-width: 100% !important;
             }
+        }
+
+        /* ========================================
+           COMPREHENSIVE DARK MODE FIX
+           Force all white/light backgrounds to dark
+           ======================================== */
+
+        .dark-mode .nav-tab.active {
+            background: var(--card-background) !important;
+        }
+
+        .dark-mode th {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode .section-header {
+            background: var(--card-background) !important;
+        }
+
+        .dark-mode .amount-action-btn {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode .amount-action-btn.save {
+            background: var(--success-green) !important;
+        }
+
+        .dark-mode .amount-action-btn.cancel {
+            background: var(--secondary-text) !important;
+        }
+
+        .dark-mode .table-action-btn {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode .sort-group {
+            background: var(--card-background) !important;
+        }
+
+        .dark-mode .chart-controls button {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode .insights-panel {
+            background: var(--card-background) !important;
+        }
+
+        .dark-mode .insight-item {
+            background: var(--glass-background) !important;
+        }
+
+        .dark-mode .status-toggle {
+            background: var(--card-background) !important;
+        }
+
+        .dark-mode .client-status-dropdown {
+            background: var(--card-background) !important;
         }
