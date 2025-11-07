@@ -1541,6 +1541,17 @@
             getClientStatusForMonth(client, month) {
                 // month format: "2025-11"
 
+                // ✅ FIXED: Check if client has started yet
+                // Extract year-month from start_date (e.g., "2025-12-01" → "2025-12")
+                if (client.start_date) {
+                    const startYearMonth = client.start_date.substring(0, 7); // "2025-12-01" → "2025-12"
+                    if (month < startYearMonth) {
+                        // Month is BEFORE client's start date → client hasn't started yet
+                        console.log(`Client ${client.name} hasn't started yet (starts ${startYearMonth}, checking ${month})`);
+                        return 'hidden'; // Don't show this client for months before they started
+                    }
+                }
+
                 // If client has a reactivation date
                 if (client.reactivation_date) {
                     if (month >= client.reactivation_date) {
