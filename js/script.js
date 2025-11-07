@@ -1185,13 +1185,13 @@
             }
 
             async updateQuickStats() {
-                // Get actual current month for Quick Stats (not the selected month from dropdown)
-                const today = new Date();
-                const actualCurrentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+                // ✅ FIXED: Use selected month from dropdown, not actual current month
+                // This allows KPI cards to update when user switches months
+                const monthToShow = this.currentMonth;
 
                 const clients = await this.loadClients();
 
-                // Load payments for the actual current month, not this.currentMonth
+                // Load payments for the selected month (respects month selector dropdown)
                 const { data, error } = await this.supabase
                     .from('monthly_payments')
                     .select(`
@@ -1200,10 +1200,11 @@
                             id,
                             name,
                             amount,
-                            status
+                            status,
+                            start_date
                         )
                     `)
-                    .eq('month', actualCurrentMonth)
+                    .eq('month', monthToShow)
                     .not('clients.status', 'eq', 'hidden');
 
                 if (error) {
@@ -1219,17 +1220,24 @@
                 let totalPaid = 0;
                 let activeClients = 0;
 
+                // ✅ FIXED: Use getClientStatusForMonth to respect start_date, churn_date, reactivation_date
                 payments.forEach(payment => {
-                    if (payment.clients && payment.clients.status === 'active') {
-                        const amount = parseFloat(payment.clients.amount) || 0;
-                        totalExpected += amount;
-                        if (payment.status === 'paid') {
-                            totalPaid += amount;
+                    if (payment.clients) {
+                        const monthStatus = this.getClientStatusForMonth(payment.clients, monthToShow);
+                        if (monthStatus === 'active') {
+                            const amount = parseFloat(payment.clients.amount) || 0;
+                            totalExpected += amount;
+                            if (payment.status === 'paid') {
+                                totalPaid += amount;
+                            }
                         }
                     }
                 });
 
-                activeClients = clients.filter(c => c.status === 'active').length;
+                // ✅ FIXED: Count active clients for the specific month
+                activeClients = clients.filter(c =>
+                    this.getClientStatusForMonth(c, monthToShow) === 'active'
+                ).length;
                 const outstanding = totalExpected - totalPaid;
                 const collectionRate = totalExpected > 0 ? (totalPaid / totalExpected * 100) : 0;
 
@@ -1262,7 +1270,7 @@
                         <div class="stat-label">Annual Recurring Revenue (ARR)</div>
                         <div class="stat-value">$${(totalExpected * 12).toLocaleString()}</div>
                         <div class="stat-change">
-                            Based on ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (MRR × 12)
+                            Based on ${new Date(monthToShow + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} (MRR × 12)
                         </div>
                     </div>
                 `;
