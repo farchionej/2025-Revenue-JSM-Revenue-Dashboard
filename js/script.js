@@ -6802,15 +6802,15 @@
                 const restTotal = totalMRR - top3Total;
                 const top3Percentage = ((top3Total / totalMRR) * 100).toFixed(1);
 
-                // Determine risk level
-                let riskLevel = 'Low Risk';
-                let riskColor = '#22C55E';
+                // Determine risk level - ✅ FIXED: Shortened text + purple theme for low risk
+                let riskLevel = 'LOW';
+                let riskColor = '#7c3aed'; // Purple theme
                 if (top3Percentage > 60) {
-                    riskLevel = 'High Risk';
-                    riskColor = '#EF4444';
+                    riskLevel = 'HIGH';
+                    riskColor = '#EF4444'; // Red for danger
                 } else if (top3Percentage > 40) {
-                    riskLevel = 'Medium Risk';
-                    riskColor = '#F59E0B';
+                    riskLevel = 'MED';
+                    riskColor = '#F59E0B'; // Amber for caution
                 }
 
                 if (this.charts.revenueConcentration) {
@@ -6931,28 +6931,28 @@
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #7c3aed; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Premium (≥$2k):</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Premium:</span>
                                 </div>
                                 <span style="font-weight: 600;">${premium.length} → $${premiumTotal.toLocaleString()}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #a78bfa; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Standard ($1-2k):</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Standard:</span>
                                 </div>
                                 <span style="font-weight: 600;">${standard.length} → $${standardTotal.toLocaleString()}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #c4b5fd; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Growth ($0.5-1k):</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Growth:</span>
                                 </div>
                                 <span style="font-weight: 600;">${growth.length} → $${growthTotal.toLocaleString()}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #9ca3af; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Small (<$500):</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Small:</span>
                                 </div>
                                 <span style="font-weight: 600;">${small.length} → $${smallTotal.toLocaleString()}</span>
                             </div>
