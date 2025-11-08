@@ -6820,11 +6820,11 @@
                 this.charts.revenueConcentration = new Chart(ctx.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: ['Top 3 Clients', 'All Others'],
+                        labels: [`Top 3 Clients (${riskLevel} Risk)`, 'All Others'],
                         datasets: [{
                             data: [top3Total, restTotal],
-                            backgroundColor: ['#7c3aed', '#e0e7ff'],
-                            borderColor: ['#6d28d9', '#c7d2fe'],
+                            backgroundColor: ['#7c3aed', '#4b5563'], // ✅ FIXED: Dark gray for "All Others"
+                            borderColor: ['#6d28d9', '#374151'],
                             borderWidth: 2
                         }]
                     },
@@ -6835,14 +6835,22 @@
                         plugins: {
                             legend: {
                                 display: true,
-                                position: 'bottom'
+                                position: 'bottom',
+                                labels: {
+                                    color: riskLevel === 'HIGH' ? '#EF4444' : riskLevel === 'MED' ? '#F59E0B' : '#7c3aed',
+                                    font: {
+                                        size: 12,
+                                        weight: '600'
+                                    },
+                                    padding: 15
+                                }
                             },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
                                         const value = context.parsed;
                                         const percentage = ((value / totalMRR) * 100).toFixed(1);
-                                        return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                                        return `$${value.toLocaleString()} (${percentage}%)`;
                                     }
                                 }
                             }
@@ -6851,27 +6859,8 @@
                             animateScale: true,
                             animateRotate: true
                         }
-                    },
-                    plugins: [{
-                        beforeDraw: function(chart) {
-                            const width = chart.width;
-                            const height = chart.height;
-                            const ctx = chart.ctx;
-                            ctx.restore();
-
-                            const fontSize = (height / 114).toFixed(2);
-                            ctx.font = `bold ${fontSize}em sans-serif`;
-                            ctx.textBaseline = 'middle';
-                            ctx.fillStyle = riskColor;
-
-                            const text = riskLevel;
-                            const textX = Math.round((width - ctx.measureText(text).width) / 2);
-                            const textY = height / 2;
-
-                            ctx.fillText(text, textX, textY);
-                            ctx.save();
-                        }
-                    }]
+                    }
+                    // ✅ FIXED: Removed center text plugin - cleaner look
                 });
             }
 
@@ -6931,21 +6920,21 @@
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #7c3aed; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Premium:</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Tier 1:</span>
                                 </div>
                                 <span style="font-weight: 600;">${premium.length} → $${premiumTotal.toLocaleString()}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #a78bfa; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Standard:</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Tier 2:</span>
                                 </div>
                                 <span style="font-weight: 600;">${standard.length} → $${standardTotal.toLocaleString()}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="width: 12px; height: 12px; background: #c4b5fd; border-radius: 2px;"></div>
-                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Growth:</span>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Tier 3:</span>
                                 </div>
                                 <span style="font-weight: 600;">${growth.length} → $${growthTotal.toLocaleString()}</span>
                             </div>
