@@ -1478,6 +1478,35 @@
                                 </div>
                             </div>
 
+                            <!-- Client Revenue Breakdown & Diversification Section -->
+                            <div style="margin-bottom: 40px;">
+                                <div class="chart-container" style="background: var(--card-background); border-radius: var(--border-radius); padding: 24px; box-shadow: var(--shadow-soft); border: 1px solid var(--glass-border);">
+                                    <div class="chart-header" style="margin-bottom: 24px;">
+                                        <div class="chart-title">Client Revenue Breakdown & Diversification</div>
+                                        <div class="chart-subtitle">Revenue distribution by client and concentration analysis</div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 60% 40%; gap: 32px; align-items: start;">
+                                        <!-- Left: Client Revenue Breakdown Bar Chart -->
+                                        <div>
+                                            <div style="height: 400px; position: relative;">
+                                                <canvas id="clientRevenueBreakdownChart"></canvas>
+                                            </div>
+                                        </div>
+                                        <!-- Right: Concentration Donut + Metrics -->
+                                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                                            <!-- Concentration Donut Chart -->
+                                            <div style="height: 250px; position: relative;">
+                                                <canvas id="revenueConcentrationChart"></canvas>
+                                            </div>
+                                            <!-- Diversification Metrics -->
+                                            <div id="diversificationMetrics" style="padding: 20px; background: var(--glass-background); border-radius: var(--border-radius-small); border: 1px solid var(--glass-border);">
+                                                <!-- Metrics will be inserted by renderClientRevenueBreakdownChart -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
                                 <div>
                                     <h3 style="margin-bottom: 16px; font-size: 1.2em;">Quick Actions</h3>
@@ -6327,6 +6356,9 @@
                     // Render Google vs Non-Google income chart
                     this.renderGoogleVsNonGoogleChart(clients);
 
+                    // Render Client Revenue Breakdown & Diversification charts
+                    this.renderClientRevenueBreakdownChart(clients);
+
                     // Force purple colors after chart rendering
                     setTimeout(() => this.forceChartColors(), 100);
 
@@ -6658,6 +6690,286 @@
                         }
                     }
                 });
+            }
+
+            renderClientRevenueBreakdownChart(clients) {
+                const ctx = document.getElementById('clientRevenueBreakdownChart');
+                if (!ctx) return;
+
+                // Get active clients for the selected month
+                const monthToShow = this.currentMonth;
+                const activeClients = clients.filter(c =>
+                    this.getClientStatusForMonth(c, monthToShow) === 'active'
+                );
+
+                // Sort by revenue (descending)
+                const sortedClients = activeClients
+                    .map(c => ({
+                        name: c.name,
+                        amount: parseFloat(c.amount) || 0
+                    }))
+                    .sort((a, b) => b.amount - a.amount);
+
+                const totalMRR = sortedClients.reduce((sum, c) => sum + c.amount, 0);
+
+                // Take top 10, group the rest
+                const top10 = sortedClients.slice(0, 10);
+                const others = sortedClients.slice(10);
+                const othersTotal = others.reduce((sum, c) => sum + c.amount, 0);
+
+                const chartData = [...top10];
+                if (others.length > 0) {
+                    chartData.push({ name: `All Others (${others.length})`, amount: othersTotal });
+                }
+
+                // Assign colors based on revenue tiers
+                const colors = chartData.map(client => {
+                    if (client.amount >= 2000) return '#7c3aed'; // Premium - Deep purple
+                    if (client.amount >= 1000) return '#a78bfa'; // Standard - Medium purple
+                    if (client.amount >= 500) return '#c4b5fd';  // Growth - Light purple
+                    return '#9ca3af'; // Small - Gray
+                });
+
+                const labels = chartData.map(c => c.name);
+                const amounts = chartData.map(c => c.amount);
+                const percentages = chartData.map(c => ((c.amount / totalMRR) * 100).toFixed(1));
+
+                if (this.charts.clientRevenueBreakdown) {
+                    this.charts.clientRevenueBreakdown.destroy();
+                }
+
+                this.charts.clientRevenueBreakdown = new Chart(ctx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: amounts,
+                            backgroundColor: colors,
+                            borderColor: colors.map(c => c),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y', // Horizontal bar chart
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.parsed.x;
+                                        const percentage = percentages[context.dataIndex];
+                                        return `$${value.toLocaleString()} (${percentage}% of MRR)`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Render diversification metrics and concentration chart
+                this.renderRevenueConcentrationChart(sortedClients, totalMRR);
+                this.renderDiversificationMetrics(sortedClients, totalMRR);
+            }
+
+            renderRevenueConcentrationChart(sortedClients, totalMRR) {
+                const ctx = document.getElementById('revenueConcentrationChart');
+                if (!ctx) return;
+
+                // Calculate top 3 vs rest
+                const top3Total = sortedClients.slice(0, 3).reduce((sum, c) => sum + c.amount, 0);
+                const restTotal = totalMRR - top3Total;
+                const top3Percentage = ((top3Total / totalMRR) * 100).toFixed(1);
+
+                // Determine risk level
+                let riskLevel = 'Low Risk';
+                let riskColor = '#22C55E';
+                if (top3Percentage > 60) {
+                    riskLevel = 'High Risk';
+                    riskColor = '#EF4444';
+                } else if (top3Percentage > 40) {
+                    riskLevel = 'Medium Risk';
+                    riskColor = '#F59E0B';
+                }
+
+                if (this.charts.revenueConcentration) {
+                    this.charts.revenueConcentration.destroy();
+                }
+
+                this.charts.revenueConcentration = new Chart(ctx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Top 3 Clients', 'All Others'],
+                        datasets: [{
+                            data: [top3Total, restTotal],
+                            backgroundColor: ['#7c3aed', '#e0e7ff'],
+                            borderColor: ['#6d28d9', '#c7d2fe'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '65%',
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.parsed;
+                                        const percentage = ((value / totalMRR) * 100).toFixed(1);
+                                        return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        animation: {
+                            animateScale: true,
+                            animateRotate: true
+                        }
+                    },
+                    plugins: [{
+                        beforeDraw: function(chart) {
+                            const width = chart.width;
+                            const height = chart.height;
+                            const ctx = chart.ctx;
+                            ctx.restore();
+
+                            const fontSize = (height / 114).toFixed(2);
+                            ctx.font = `bold ${fontSize}em sans-serif`;
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = riskColor;
+
+                            const text = riskLevel;
+                            const textX = Math.round((width - ctx.measureText(text).width) / 2);
+                            const textY = height / 2;
+
+                            ctx.fillText(text, textX, textY);
+                            ctx.save();
+                        }
+                    }]
+                });
+            }
+
+            renderDiversificationMetrics(sortedClients, totalMRR) {
+                const metricsDiv = document.getElementById('diversificationMetrics');
+                if (!metricsDiv) return;
+
+                // Calculate metrics
+                const topClient = sortedClients[0];
+                const top3Total = sortedClients.slice(0, 3).reduce((sum, c) => sum + c.amount, 0);
+                const top3Percentage = ((top3Total / totalMRR) * 100).toFixed(1);
+
+                // Revenue tiers
+                const premium = sortedClients.filter(c => c.amount >= 2000);
+                const standard = sortedClients.filter(c => c.amount >= 1000 && c.amount < 2000);
+                const growth = sortedClients.filter(c => c.amount >= 500 && c.amount < 1000);
+                const small = sortedClients.filter(c => c.amount < 500);
+
+                const premiumTotal = premium.reduce((sum, c) => sum + c.amount, 0);
+                const standardTotal = standard.reduce((sum, c) => sum + c.amount, 0);
+                const growthTotal = growth.reduce((sum, c) => sum + c.amount, 0);
+                const smallTotal = small.reduce((sum, c) => sum + c.amount, 0);
+
+                // Diversification score (0-10 scale)
+                let diversificationScore = 10;
+                if (top3Percentage > 60) diversificationScore -= 4;
+                else if (top3Percentage > 40) diversificationScore -= 2;
+                if (sortedClients.length < 10) diversificationScore -= 2;
+                if (premium.length < 3) diversificationScore -= 1;
+
+                const avgRevenue = (totalMRR / sortedClients.length).toFixed(0);
+
+                metricsDiv.innerHTML = `
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 0.85em; font-weight: 600; color: var(--secondary-text); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Revenue Concentration</div>
+                        <div style="margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span style="color: var(--secondary-text); font-size: 0.9em;">Top Client:</span>
+                                <span style="font-weight: 600;">${topClient.name}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--secondary-text); font-size: 0.9em;"></span>
+                                <span style="font-weight: 600; color: var(--primary-text);">$${topClient.amount.toLocaleString()} (${((topClient.amount / totalMRR) * 100).toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--secondary-text); font-size: 0.9em;">Top 3 Clients:</span>
+                                <span style="font-weight: 600; color: var(--primary-text);">$${top3Total.toLocaleString()} (${top3Percentage}%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 16px; padding-top: 16px; border-top: 1px solid var(--glass-border);">
+                        <div style="font-size: 0.85em; font-weight: 600; color: var(--secondary-text); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Client Distribution</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 12px; height: 12px; background: #7c3aed; border-radius: 2px;"></div>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Premium (≥$2k):</span>
+                                </div>
+                                <span style="font-weight: 600;">${premium.length} → $${premiumTotal.toLocaleString()}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 12px; height: 12px; background: #a78bfa; border-radius: 2px;"></div>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Standard ($1-2k):</span>
+                                </div>
+                                <span style="font-weight: 600;">${standard.length} → $${standardTotal.toLocaleString()}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 12px; height: 12px; background: #c4b5fd; border-radius: 2px;"></div>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Growth ($0.5-1k):</span>
+                                </div>
+                                <span style="font-weight: 600;">${growth.length} → $${growthTotal.toLocaleString()}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 12px; height: 12px; background: #9ca3af; border-radius: 2px;"></div>
+                                    <span style="color: var(--secondary-text); font-size: 0.9em;">Small (<$500):</span>
+                                </div>
+                                <span style="font-weight: 600;">${small.length} → $${smallTotal.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="padding-top: 16px; border-top: 1px solid var(--glass-border);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--secondary-text); font-size: 0.9em;">Diversification Score:</span>
+                            <span style="font-weight: 700; font-size: 1.1em; color: ${diversificationScore >= 7 ? '#22C55E' : diversificationScore >= 4 ? '#F59E0B' : '#EF4444'};">${diversificationScore}/10</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--secondary-text); font-size: 0.9em;">Avg Revenue/Client:</span>
+                            <span style="font-weight: 600;">$${avgRevenue}</span>
+                        </div>
+                    </div>
+                `;
             }
 
             async contactClient(clientName) {
