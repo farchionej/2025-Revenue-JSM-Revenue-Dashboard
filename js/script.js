@@ -1504,6 +1504,10 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <!-- Tier Range Reference -->
+                                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--glass-border); font-size: 0.75em; color: var(--secondary-text); opacity: 0.7;">
+                                        Tier 1: ≥$2,000/month &nbsp;•&nbsp; Tier 2: $1,000-$1,999/month &nbsp;•&nbsp; Tier 3: $500-$999/month &nbsp;•&nbsp; Small: &lt;$500/month
+                                    </div>
                                 </div>
                             </div>
 
