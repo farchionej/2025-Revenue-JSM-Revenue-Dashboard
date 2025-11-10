@@ -6706,13 +6706,41 @@
                     this.getClientStatusForMonth(c, monthToShow) === 'active'
                 );
 
+                // Owner consolidation mapping - clients with same owner should be grouped
+                const ownerGroups = {
+                    'Precita Social + Third Cousin': ['Precita Social', 'Third Cousin'],
+                    'Hot Stuff + Hungry Eyes + Turkey in the Wolf': ['Hot Stuff', 'Hungry Eyes', 'Turkey in the Wolf']
+                };
+
+                // Create consolidated client list
+                const consolidatedClients = [];
+                const processedClients = new Set();
+
+                // Process owner groups first
+                for (const [groupName, clientNames] of Object.entries(ownerGroups)) {
+                    const groupClients = activeClients.filter(c => clientNames.includes(c.name));
+                    if (groupClients.length > 0) {
+                        const totalAmount = groupClients.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+                        consolidatedClients.push({
+                            name: groupName,
+                            amount: totalAmount
+                        });
+                        groupClients.forEach(c => processedClients.add(c.name));
+                    }
+                }
+
+                // Add remaining individual clients
+                activeClients.forEach(c => {
+                    if (!processedClients.has(c.name)) {
+                        consolidatedClients.push({
+                            name: c.name,
+                            amount: parseFloat(c.amount) || 0
+                        });
+                    }
+                });
+
                 // Sort by revenue (descending)
-                const sortedClients = activeClients
-                    .map(c => ({
-                        name: c.name,
-                        amount: parseFloat(c.amount) || 0
-                    }))
-                    .sort((a, b) => b.amount - a.amount);
+                const sortedClients = consolidatedClients.sort((a, b) => b.amount - a.amount);
 
                 const totalMRR = sortedClients.reduce((sum, c) => sum + c.amount, 0);
 
