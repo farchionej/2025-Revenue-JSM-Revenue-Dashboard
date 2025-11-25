@@ -1902,7 +1902,9 @@
                     return `
                         <tr data-client-id="${client.id}" data-client-status="${client.status}" data-payment-status="${payment?.status || 'none'}">
                             <td>
-                                <div style="font-weight: 500;">${client.name}</div>
+                                <span class="editable-name" data-client-id="${client.id}" data-current-name="${client.name.replace(/'/g, "\\'")}" onclick="Dashboard.actions.editClientName('${client.id}', '${client.name.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; font-weight: 500; display: inline-block;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+                                    ${client.name}
+                                </span>
                             </td>
                             <td>
                                 <span class="editable-amount" data-client-id="${client.id}" data-current-amount="${amount}" onclick="Dashboard.actions.editClientAmount('${client.id}', ${amount})" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
@@ -3870,6 +3872,7 @@
                 return {
                     addClient: () => this.showAddClientModal(),
                     editClient: (id) => this.toast('Edit client functionality coming soon', 'info'),
+                    editClientName: (clientId, currentName) => this.editClientName(clientId, currentName),
                     deleteClient: (id, name) => this.deleteClient(id, name),
                     editClientAmount: (clientId, currentAmount) => this.editClientAmount(clientId, currentAmount),
                     startInlineAmountEdit: (element) => this.startInlineAmountEdit(element),
@@ -4738,6 +4741,129 @@
                 } finally {
                     this.hideLoading();
                 }
+            }
+
+            async updateClientName(clientId, newName, element, originalContent) {
+                console.log('📝 Updating client name:', { clientId, newName });
+
+                this.showLoading();
+                try {
+                    const currentDate = new Date().toISOString().split('T')[0];
+                    const effectiveDate = `${this.currentMonth}-01`;
+
+                    // Step 1: Get current client name before updating
+                    const { data: currentClient } = await this.supabase
+                        .from('clients')
+                        .select('name')
+                        .eq('id', clientId)
+                        .single();
+
+                    const oldName = currentClient?.name || originalContent;
+
+                    // Step 2: Preserve historical names - store current name in all existing payment records
+                    // This ensures October, September, etc. will show the old name
+                    try {
+                        const { error: preserveError } = await this.supabase
+                            .from('monthly_payments')
+                            .update({ client_name: oldName })
+                            .eq('client_id', clientId)
+                            .lt('month', this.currentMonth) // Only update PAST months
+                            .is('client_name', null); // Only update if client_name is not already set
+
+                        if (preserveError) {
+                            console.warn('Could not preserve historical names (client_name field may not exist):', preserveError);
+                        } else {
+                            console.log('✅ Historical payment records preserved with old name');
+                        }
+                    } catch (preserveErr) {
+                        console.warn('Historical name preservation skipped:', preserveErr);
+                    }
+
+                    // Step 3: Create name history record (if table exists)
+                    try {
+                        await this.supabase
+                            .from('client_name_history')
+                            .insert({
+                                client_id: clientId,
+                                name: newName,
+                                effective_date: effectiveDate,
+                                created_at: currentDate
+                            });
+                    } catch (historyError) {
+                        console.warn('Name history table not found, skipping history record');
+                    }
+
+                    // Step 4: Update client's base name
+                    const { error: clientError } = await this.supabase
+                        .from('clients')
+                        .update({ name: newName })
+                        .eq('id', clientId);
+
+                    if (clientError) throw clientError;
+                    console.log('✅ Client base name updated successfully');
+
+                    // Step 5: Update ALL FUTURE monthly_payments (current month and forward) with new name
+                    try {
+                        const { error: paymentsError } = await this.supabase
+                            .from('monthly_payments')
+                            .update({ client_name: newName })
+                            .eq('client_id', clientId)
+                            .gte('month', this.currentMonth); // Only update current and future months
+
+                        if (paymentsError) {
+                            // If client_name field doesn't exist, that's okay - the clients table update is sufficient
+                            console.warn('Note: client_name field may not exist in monthly_payments, but clients table was updated');
+                        } else {
+                            console.log('✅ Future month payments updated with new name');
+                        }
+                    } catch (paymentsErr) {
+                        console.warn('Future payments name update skipped:', paymentsErr);
+                    }
+
+                    // Update the display
+                    element.innerHTML = newName;
+                    element.dataset.currentName = newName;
+
+                    // Refresh other data
+                    this.clearCache();
+                    await this.loadPayments();
+                    await this.updateQuickStats();
+
+                    // Refresh all charts to reflect name change
+                    await this.refreshAllCharts();
+
+                    this.toast(`Client name updated to "${newName}" for ${this.currentMonth} and all future months`, 'success');
+                } catch (error) {
+                    this.toast('Failed to update client name', 'error');
+                    console.error('Error updating client name:', error);
+                    element.innerHTML = originalContent; // Restore original on error
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            editClientName(clientId, currentName) {
+                console.log('📝 editClientName called:', { clientId, currentName });
+
+                // Find the name element for this client in the current view
+                const nameElement = document.querySelector(`[data-client-id="${clientId}"] .editable-name`);
+                if (nameElement) {
+                    // Set the data attributes if not already set
+                    if (!nameElement.dataset.currentName) {
+                        nameElement.dataset.currentName = currentName;
+                    }
+                }
+
+                const newName = prompt('Enter new client name:', currentName);
+                if (!newName || newName.trim() === '' || newName === currentName) {
+                    return; // User cancelled or didn't change
+                }
+
+                const trimmedName = newName.trim();
+                const originalContent = nameElement ? nameElement.innerHTML : currentName;
+
+                // Call the update function
+                this.updateClientName(clientId, trimmedName, nameElement || { innerHTML: '', dataset: {} }, originalContent);
             }
 
             async quickMarkPaid(paymentId) {
