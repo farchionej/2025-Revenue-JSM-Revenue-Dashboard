@@ -1225,7 +1225,10 @@
                     if (payment.clients) {
                         const monthStatus = this.getClientStatusForMonth(payment.clients, monthToShow);
                         if (monthStatus === 'active') {
-                            const amount = parseFloat(payment.clients.amount) || 0;
+                            // CRITICAL FIX: Use payment.amount (preserves historical amounts) instead of payment.clients.amount
+                            const amount = payment.amount !== null && payment.amount !== undefined
+                                ? parseFloat(payment.amount) || 0
+                                : parseFloat(payment.clients.amount) || 0;
                             totalExpected += amount;
                             if (payment.status === 'paid') {
                                 totalPaid += amount;
@@ -1855,7 +1858,15 @@
 
                 return clients.map(client => {
                     const payment = paymentMap.get(client.id);
-                    const amount = parseFloat(client.amount) || 0;
+                    // CRITICAL FIX: Use payment.amount if it exists (preserves historical amounts), otherwise fall back to client.amount
+                    const amount = payment && payment.amount !== null && payment.amount !== undefined 
+                        ? parseFloat(payment.amount) || 0 
+                        : parseFloat(client.amount) || 0;
+                    
+                    // CRITICAL FIX: Use payment.client_name if it exists (preserves historical names), otherwise fall back to client.name
+                    const displayName = payment && payment.client_name 
+                        ? payment.client_name 
+                        : client.name;
 
                     // Use monthStatus if available (respects churn/reactivation dates), otherwise use current status
                     const displayStatus = client.monthStatus || client.status;
@@ -1902,8 +1913,8 @@
                     return `
                         <tr data-client-id="${client.id}" data-client-status="${client.status}" data-payment-status="${payment?.status || 'none'}">
                             <td>
-                                <span class="editable-name" data-client-id="${client.id}" data-current-name="${client.name.replace(/'/g, "\\'")}" onclick="Dashboard.actions.editClientName('${client.id}', '${client.name.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; font-weight: 500; display: inline-block;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
-                                    ${client.name}
+                                <span class="editable-name" data-client-id="${client.id}" data-current-name="${displayName.replace(/'/g, "\\'")}" onclick="Dashboard.actions.editClientName('${client.id}', '${displayName.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; font-weight: 500; display: inline-block;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+                                    ${displayName}
                                 </span>
                             </td>
                             <td>
@@ -2087,11 +2098,16 @@
 
                     const client = payment.clients;
                     const status = client.status === 'paused' ? 'paused' : payment.status;
-                    const amount = parseFloat(client.amount) || 0;
+                    // CRITICAL FIX: Use payment.amount (preserves historical amounts) instead of client.amount
+                    const amount = payment.amount !== null && payment.amount !== undefined
+                        ? parseFloat(payment.amount) || 0
+                        : parseFloat(client.amount) || 0;
+                    // CRITICAL FIX: Use payment.client_name if it exists (preserves historical names), otherwise fall back to client.name
+                    const displayName = payment.client_name || client.name;
 
                     return `
                         <tr>
-                            <td><strong>${client.name}</strong></td>
+                            <td><strong>${displayName}</strong></td>
                             <td>$${amount.toLocaleString()}</td>
                             <td>
                                 <span class="status ${status}"
@@ -2145,7 +2161,12 @@
 
                     const client = payment.clients;
                     const status = client.status === 'paused' ? 'paused' : payment.status;
-                    const amount = parseFloat(client.amount) || 0;
+                    // CRITICAL FIX: Use payment.amount (preserves historical amounts) instead of client.amount
+                    const amount = payment.amount !== null && payment.amount !== undefined
+                        ? parseFloat(payment.amount) || 0
+                        : parseFloat(client.amount) || 0;
+                    // CRITICAL FIX: Use payment.client_name if it exists (preserves historical names), otherwise fall back to client.name
+                    const displayName = payment.client_name || client.name;
                     const isPaused = client.status === 'paused';
 
                     return `
@@ -2153,7 +2174,7 @@
                             <td>
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <div>
-                                        <div style="font-weight: 600; font-size: 0.95em;">${client.name}</div>
+                                        <div style="font-weight: 600; font-size: 0.95em;">${displayName}</div>
                                         <div style="font-size: 0.8em; color: var(--secondary-gray);">
                                             Client since ${new Date(client.start_date || '2024-01-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
                                         </div>
