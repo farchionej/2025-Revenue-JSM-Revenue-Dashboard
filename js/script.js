@@ -1858,10 +1858,24 @@
 
                 return clients.map(client => {
                     const payment = paymentMap.get(client.id);
-                    // CRITICAL FIX: Use payment.amount if it exists (preserves historical amounts), otherwise fall back to client.amount
-                    const amount = payment && payment.amount !== null && payment.amount !== undefined 
-                        ? parseFloat(payment.amount) || 0 
-                        : parseFloat(client.amount) || 0;
+                    
+                    // CRITICAL FIX: Always prefer payment.amount if payment record exists
+                    // This prevents backdating when client.amount is updated
+                    let amount;
+                    if (payment) {
+                        // If payment record exists, use its amount (even if 0 or null)
+                        // Only fall back to client.amount if payment.amount is truly missing
+                        if (payment.hasOwnProperty('amount') && payment.amount !== null && payment.amount !== undefined) {
+                            amount = parseFloat(payment.amount) || 0;
+                        } else {
+                            // Payment exists but amount field is missing - use client amount as fallback
+                            amount = parseFloat(client.amount) || 0;
+                            console.warn(`Payment record for ${client.name} (${this.currentMonth}) missing amount field, using client.amount:`, amount);
+                        }
+                    } else {
+                        // No payment record exists - use client amount
+                        amount = parseFloat(client.amount) || 0;
+                    }
                     
                     // CRITICAL FIX: Use payment.client_name if it exists (preserves historical names), otherwise fall back to client.name
                     const displayName = payment && payment.client_name 
@@ -4698,14 +4712,44 @@
             }
 
             async updateClientAmount(clientId, newAmount, element, originalContent) {
-                console.log('💰 Updating client amount:', { clientId, newAmount });
+                console.log('💰 Updating client amount:', { clientId, newAmount, effectiveMonth: this.currentMonth });
 
                 this.showLoading();
                 try {
                     const currentDate = new Date().toISOString().split('T')[0];
                     const effectiveDate = `${this.currentMonth}-01`;
 
-                    // Step 1: Create amount history record (if table exists)
+                    // Step 1: Get current client amount BEFORE updating (to preserve history)
+                    const { data: currentClient } = await this.supabase
+                        .from('clients')
+                        .select('amount')
+                        .eq('id', clientId)
+                        .single();
+
+                    const oldAmount = currentClient?.amount || originalContent;
+                    console.log('📊 Current amount before update:', oldAmount);
+
+                    // Step 2: CRITICAL - Preserve historical amounts in PAST payment records
+                    // This ensures October, November, etc. keep their original amounts
+                    // Only update records where amount is null (to backfill historical data)
+                    try {
+                        const { error: preserveError } = await this.supabase
+                            .from('monthly_payments')
+                            .update({ amount: oldAmount })
+                            .eq('client_id', clientId)
+                            .lt('month', this.currentMonth) // Only update PAST months
+                            .is('amount', null); // Only update if amount is null (backfill)
+
+                        if (preserveError) {
+                            console.warn('Could not preserve historical amounts (this is okay if no past records exist):', preserveError);
+                        } else {
+                            console.log('✅ Preserved historical amounts in past payment records (backfilled null values)');
+                        }
+                    } catch (preserveErr) {
+                        console.warn('Historical amount preservation skipped:', preserveErr);
+                    }
+
+                    // Step 3: Create amount history record (if table exists)
                     try {
                         await this.supabase
                             .from('client_amount_history')
@@ -4719,7 +4763,7 @@
                         console.warn('Amount history table not found, skipping history record');
                     }
 
-                    // Step 2: Update client's base amount
+                    // Step 4: Update client's base amount
                     const { error: clientError } = await this.supabase
                         .from('clients')
                         .update({ amount: newAmount })
@@ -4728,19 +4772,25 @@
                     if (clientError) throw clientError;
                     console.log('✅ Client base amount updated successfully');
 
-                    // Step 3: Update ALL FUTURE monthly_payments (current month and forward)
-                    const { error: paymentsError } = await this.supabase
+                    // Step 5: Update ALL FUTURE monthly_payments (current month and forward)
+                    console.log(`🔍 Updating payments for client ${clientId} where month >= '${this.currentMonth}'`);
+                    const { data: updatedPayments, error: paymentsError } = await this.supabase
                         .from('monthly_payments')
                         .update({ amount: newAmount })
                         .eq('client_id', clientId)
-                        .gte('month', this.currentMonth); // Only update current and future months
+                        .gte('month', this.currentMonth) // Only update current and future months
+                        .select('id, month, amount');
 
                     if (paymentsError) {
-                        console.error('Error updating future payments:', paymentsError);
+                        console.error('❌ Error updating future payments:', paymentsError);
                         throw paymentsError;
                     }
 
-                    console.log('✅ Future month payments updated successfully');
+                    if (updatedPayments && updatedPayments.length > 0) {
+                        console.log(`✅ Updated ${updatedPayments.length} payment records:`, updatedPayments.map(p => `${p.month}: $${p.amount}`).join(', '));
+                    } else {
+                        console.warn('⚠️ No payment records were updated. This might mean no records exist for this month and forward.');
+                    }
 
                     // Update the display with clean design
                     element.innerHTML = `$${newAmount.toLocaleString()}`;
